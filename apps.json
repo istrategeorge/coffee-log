@@ -1,0 +1,26 @@
+{
+  "name": "Dial-In (Espresso Log)",
+  "identifier": "com.istrategeorge.coffee-log",
+  "subtitle": "Specialty Espresso Dial-In & Logging",
+  "description": "Minimalist, rapid dial-in espresso logging app designed for high-extraction baskets, flat burrs, and profiling dual-boiler setups.",
+  "website": "https://github.com/istrategeorge/coffee-log",
+  "iconURL": "https://raw.githubusercontent.com/istrategeorge/coffee-log/main/icon.png",
+  "headerURL": "https://raw.githubusercontent.com/istrategeorge/coffee-log/main/icon.png",
+  "apps": [
+    {
+      "name": "Dial-In",
+      "bundleIdentifier": "com.example.EspressoLog",
+      "developerName": "George Istrate",
+      "subtitle": "Specialty Espresso Dial-In",
+      "version": "1.0",
+      "versionDate": "2026-10-16",
+      "versionDescription": "Initial release: <15s pull logging, pre-filled previous recipes, positive-only grind dial (0.0–10.0), integer 0-point offset, bag inventory tracker, and Flow × Balance intelligence engine.",
+      "downloadURL": "https://github.com/istrategeorge/coffee-log/releases/latest/download/EspressoLog.ipa",
+      "localizedDescription": "Minimalist, fast, tactile espresso logging app designed specifically for specialty coffee dial-in, flat-burr grinders (e.g., Timemore Sculptor 078s), and dual-boiler/profiling setups (e.g., La Marzocco Linea Micra).\n\nFeatures:\n• Log complete pulls in under 15 seconds directly from the counter\n• Automatic pre-fill of all parameters from previous cup\n• Positive-only grind setting (0.0 to 10.0) with integer 0-point offset field\n• Live rest day calculation (pauses calculation when frozen)\n• Bag weight and remaining shots tracker based on usual dose\n• Full Flow Quality × Sensory Balance extraction insights engine",
+      "iconURL": "https://raw.githubusercontent.com/istrategeorge/coffee-log/main/icon.png",
+      "tintColor": "10B981",
+      "size": 15000000
+    }
+  ],
+  "news": []
+}

@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build EspressoLog IPA
     runs-on: macos-15
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -51,3 +53,14 @@ jobs:
           name: EspressoLog-IPA
           path: EspressoLog.ipa
           retention-days: 7
+
+      - name: Create / Update GitHub Release for AltStore
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: latest
+          name: "Dial-In (EspressoLog)"
+          body: "Automated build of Dial-In for AltStore source. Download the IPA or add the source URL to AltStore."
+          files: EspressoLog.ipa
+          prerelease: false
+          make_latest: true
