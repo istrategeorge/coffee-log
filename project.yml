@@ -1,0 +1,59 @@
+name: EspressoLog
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  EspressoLog:
+    type: application
+    platform: iOS
+    sources:
+      - path: EspressoLog
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.EspressoLog
+        PRODUCT_NAME: EspressoLog
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Dial-In
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  EspressoLogTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EspressoLogTests
+    dependencies:
+      - target: EspressoLog
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.EspressoLogTests
+
+schemes:
+  EspressoLog:
+    build:
+      targets:
+        EspressoLog: all
+        EspressoLogTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - EspressoLogTests
