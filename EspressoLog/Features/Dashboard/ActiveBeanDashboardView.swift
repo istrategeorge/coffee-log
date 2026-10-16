@@ -378,7 +378,7 @@ private struct ActiveBeanCard: View {
                         } icon: {
                             Image(systemName: "scalemass.fill")
                                 .font(.caption)
-                                .foregroundStyle(shotsLeft <= 2 ? .orange : .accentColor)
+                                .foregroundStyle(shotsLeft <= 2 ? Color.orange : Color.accentColor)
                         }
                         Text("(\(bean.remainingGrams.fixed(0))g / \(bean.bagWeightGrams.fixed(0))g · @\(dose.fixed())g)")
                             .font(.caption2.monospacedDigit())
@@ -444,7 +444,7 @@ private struct ActiveBeanCard: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .foregroundStyle(bean.isFrozen ? .cyan : .orange)
+            .foregroundStyle(bean.isFrozen ? Color.cyan : Color.orange)
             .background((bean.isFrozen ? Color.cyan : Color.orange).opacity(0.14), in: Capsule())
         }
         .buttonStyle(.plain)

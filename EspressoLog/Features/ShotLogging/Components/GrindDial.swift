@@ -70,7 +70,7 @@ struct GrindDial: View {
 
                 Text(offsetText)
                     .font(.caption.weight(.bold).monospacedDigit())
-                    .foregroundStyle(zeroOffset == 0 ? .secondary : .tint)
+                    .foregroundStyle(zeroOffset == 0 ? Color.secondary : Color.accentColor)
                     .frame(minWidth: 26)
 
                 Button {
