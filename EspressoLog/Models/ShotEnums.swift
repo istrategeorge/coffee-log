@@ -151,11 +151,17 @@ enum FlowQuality: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     var symbol: String {
-        switch self {
-        case .smoothCone: "checkmark.seal.fill"
-        case .fastGushing: "bolt.fill"
-        case .chokedDrip: "drop.fill"
-        case .channelingSquirts: "sparkles"
+        symbol(for: .espresso)
+    }
+
+    func symbol(for method: BrewMethod) -> String {
+        switch (method, self) {
+        case (_, .smoothCone): "checkmark.seal.fill"
+        case (_, .fastGushing): "bolt.fill"
+        case (.espresso, .chokedDrip): "drop.fill"
+        case (.pourOver, .chokedDrip): "hourglass"
+        case (.espresso, .channelingSquirts): "sparkles"
+        case (.pourOver, .channelingSquirts): "exclamationmark.triangle.fill"
         }
     }
 
