@@ -9,6 +9,7 @@ struct ShotHistoryListView: View {
     @Query(sort: \CoffeeBean.createdAt, order: .reverse) private var beans: [CoffeeBean]
 
     @State private var beanFilter: CoffeeBean?
+    @State private var methodFilter: BrewMethod?
     @State private var searchText: String = ""
 
     init(bean: CoffeeBean? = nil) {
@@ -16,11 +17,14 @@ struct ShotHistoryListView: View {
     }
 
     private var visibleShots: [ShotLog] {
-        let base: [ShotLog]
+        var base: [ShotLog]
         if let beanFilter {
             base = allShots.filter { $0.bean?.persistentModelID == beanFilter.persistentModelID }
         } else {
             base = allShots
+        }
+        if let methodFilter {
+            base = base.filter { $0.brewMethod == methodFilter }
         }
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,9 +32,14 @@ struct ShotHistoryListView: View {
 
         return base.filter { shot in
             if let bean = shot.bean, bean.matchesSearch(query) { return true }
+            if shot.brewMethod.label.localizedStandardContains(query) { return true }
+            if let dripper = shot.dripper, dripper.localizedStandardContains(query) { return true }
             if shot.flavorNotes.contains(where: { $0.localizedStandardContains(query) }) { return true }
             if let tweak = shot.actionableNextTweak, tweak.localizedStandardContains(query) { return true }
-            if let equipment = shot.equipment, equipment.fullLine.localizedStandardContains(query) { return true }
+            if let equipment = shot.equipment,
+               equipment.fullLine(for: shot.brewMethod, dripper: shot.dripper).localizedStandardContains(query) {
+                return true
+            }
             return false
         }
     }
@@ -70,12 +79,19 @@ struct ShotHistoryListView: View {
             }
         }
         .listStyle(.plain)
-        .searchable(text: $searchText, prompt: "Search coffee, roaster, notes, gear…")
-        .navigationTitle(beanFilter?.name ?? "All Shots")
+        .searchable(text: $searchText, prompt: "Search coffee, roaster, method, notes, gear…")
+        .navigationTitle(beanFilter?.name ?? "All Brews")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Picker("Brew Method", selection: $methodFilter) {
+                        Text("All Methods").tag(BrewMethod?.none)
+                        ForEach(BrewMethod.allCases) { method in
+                            Label(method.label, systemImage: method.symbol).tag(Optional(method))
+                        }
+                    }
+                    Divider()
                     Picker("Bean", selection: $beanFilter) {
                         Text("All Bags").tag(CoffeeBean?.none)
                         ForEach(beans) { bean in
@@ -94,9 +110,9 @@ struct ShotHistoryListView: View {
                     ContentUnavailableView.search(text: searchText)
                 } else {
                     ContentUnavailableView(
-                        "No Shots Yet",
+                        "No Brews Yet",
                         systemImage: "cup.and.saucer",
-                        description: Text("Logged pulls will appear here.")
+                        description: Text("Logged espresso shots and pour overs will appear here.")
                     )
                 }
             }

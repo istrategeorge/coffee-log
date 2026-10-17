@@ -3,6 +3,7 @@ import SwiftUI
 /// Tappable value tile. Tapping selects the field for the keypad.
 struct MeasurementTile: View {
     let field: NumericField
+    var method: BrewMethod = .espresso
     let text: String
     var caption: String?
     let isActive: Bool
@@ -11,10 +12,12 @@ struct MeasurementTile: View {
     let action: () -> Void
 
     var body: some View {
+        let label = field.label(for: method)
+        let unit = field.unit(for: method)
         Button(action: action) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
-                    Text(field.label)
+                    Text(label)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -29,8 +32,8 @@ struct MeasurementTile: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .contentTransition(.numericText())
-                    if !field.unit.isEmpty {
-                        Text(field.unit)
+                    if !unit.isEmpty {
+                        Text(unit)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -39,6 +42,8 @@ struct MeasurementTile: View {
                     Text(caption)
                         .font(.caption2.weight(.medium).monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -54,7 +59,7 @@ struct MeasurementTile: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(field.label) \(text) \(field.unit)")
+        .accessibilityLabel("\(label) \(text) \(unit)")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }

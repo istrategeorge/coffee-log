@@ -133,6 +133,12 @@ extension CoffeeBean {
         shots.max { $0.timestamp < $1.timestamp }
     }
 
+    func latestShot(for method: BrewMethod) -> ShotLog? {
+        shots
+            .filter { $0.brewMethod == method }
+            .max { $0.timestamp < $1.timestamp }
+    }
+
     /// Total grams of coffee dosed from this bag across all logged pulls.
     var usedGrams: Double {
         shots.reduce(0) { $0 + $1.dose }

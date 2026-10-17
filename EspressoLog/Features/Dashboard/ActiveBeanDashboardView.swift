@@ -15,7 +15,7 @@ struct ActiveBeanDashboardView: View {
     @State private var activeSheet: SheetDestination?
 
     private enum SheetDestination: Identifiable {
-        case logShot(CoffeeBean)
+        case logShot(CoffeeBean, BrewMethod?)
         case beanLibrary
         case newBean
         case rebuyBean(CoffeeBean)
@@ -24,7 +24,7 @@ struct ActiveBeanDashboardView: View {
 
         var id: String {
             switch self {
-            case .logShot: "logShot"
+            case .logShot(_, let method): "logShot-\(method?.rawValue ?? "auto")"
             case .beanLibrary: "beanLibrary"
             case .newBean: "newBean"
             case .rebuyBean: "rebuyBean"
@@ -46,7 +46,17 @@ struct ActiveBeanDashboardView: View {
     /// 1) Latest shot on this bag
     /// 2) Latest shot from a previous bag of the same coffee
     /// 3) Latest shot overall
-    private func preferredTemplateShot(for bean: CoffeeBean) -> ShotLog? {
+    private func preferredTemplateShot(for bean: CoffeeBean, method: BrewMethod? = nil) -> ShotLog? {
+        if let method {
+            if let latest = bean.latestShot(for: method) { return latest }
+            if let previousBagShot = beans
+                .filter({ $0.isSameCoffee(as: bean) })
+                .compactMap({ $0.latestShot(for: method) })
+                .max(by: { $0.timestamp < $1.timestamp }) {
+                return previousBagShot
+            }
+            return allShots.first(where: { $0.brewMethod == method })
+        }
         if let latest = bean.latestShot { return latest }
         if let previousBagShot = beans
             .filter({ $0.isSameCoffee(as: bean) })
@@ -76,11 +86,12 @@ struct ActiveBeanDashboardView: View {
             }
             .sheet(item: $activeSheet) { destination in
                 switch destination {
-                case .logShot(let bean):
+                case .logShot(let bean, let method):
                     ShotLoggingSheetView(
                         bean: bean,
                         equipment: activeEquipment,
-                        fallbackTemplate: preferredTemplateShot(for: bean)
+                        fallbackTemplate: preferredTemplateShot(for: bean, method: method),
+                        initialMethod: method
                     )
                 case .beanLibrary:
                     BeanLibrarySheet { template in
@@ -278,26 +289,58 @@ struct ActiveBeanDashboardView: View {
     }
 
     private func logShotBar(for bean: CoffeeBean) -> some View {
-        let template = preferredTemplateShot(for: bean)
-        return Button {
-            activeSheet = .logShot(bean)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title3)
-                Text("Log Shot")
-                    .font(.headline)
-                if let template {
-                    Text("· \(template.dose.fixed())g @ G \(template.grindSetting.fixed())")
-                        .font(.subheadline.monospacedDigit())
-                        .opacity(0.85)
+        let espTemplate = preferredTemplateShot(for: bean, method: .espresso)
+        let poTemplate = preferredTemplateShot(for: bean, method: .pourOver)
+        return HStack(spacing: 10) {
+            Button {
+                activeSheet = .logShot(bean, .espresso)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: BrewMethod.espresso.symbol)
+                        .font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Log Espresso")
+                            .font(.subheadline.weight(.bold))
+                        if let espTemplate {
+                            Text("\(espTemplate.dose.fixed())g @ G \(espTemplate.grindSetting.fixed())")
+                                .font(.caption2.monospacedDigit())
+                                .opacity(0.85)
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+
+            Button {
+                activeSheet = .logShot(bean, .pourOver)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: BrewMethod.pourOver.symbol)
+                        .font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Pour Over")
+                            .font(.subheadline.weight(.bold))
+                        if let poTemplate {
+                            Text("\(poTemplate.dose.fixed())g @ G \(poTemplate.grindSetting.fixed())")
+                                .font(.caption2.monospacedDigit())
+                                .opacity(0.85)
+                        } else {
+                            Text("15g · 1:16.7")
+                                .font(.caption2.monospacedDigit())
+                                .opacity(0.85)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.teal)
+            .buttonBorderShape(.capsule)
         }
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.capsule)
         .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -373,7 +416,7 @@ private struct ActiveBeanCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Label {
-                            Text("~\(shotsLeft) \(shotsLeft == 1 ? "shot" : "shots") left")
+                            Text("~\(shotsLeft) \(shotsLeft == 1 ? "dose" : "doses") left")
                                 .font(.caption.weight(.bold).monospacedDigit())
                         } icon: {
                             Image(systemName: "scalemass.fill")
@@ -464,7 +507,7 @@ private struct EquipmentStrip: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(equipment.machineName)
                         .font(.subheadline.weight(.semibold))
-                    Text(equipment.summary)
+                    Text("\(equipment.summary) · \(equipment.defaultDripper)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -481,27 +524,40 @@ private struct EquipmentStrip: View {
     }
 }
 
-/// Quick-glance summary of the last pull + its "Next tweak" callout.
+/// Quick-glance summary of the last brew + its "Next tweak" callout.
 private struct LastRecipeCard: View {
     let shot: ShotLog
     var isCarryOver: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                SectionLabel(isCarryOver ? "Previous Bag Recipe · R\(shot.restDaysAtBrew)" : "Last Pull · R\(shot.restDaysAtBrew)")
+            HStack(spacing: 6) {
+                SectionLabel(isCarryOver ? "Previous Bag Recipe · R\(shot.restDaysAtBrew)" : "Last Brew · R\(shot.restDaysAtBrew)")
+                BrewMethodBadge(method: shot.brewMethod, dripper: shot.dripper)
                 Spacer()
                 BalanceGlyph(balance: shot.tasteBalance)
             }
 
-            HStack(spacing: 0) {
-                metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
-                Divider().frame(height: 28)
-                metric("Ratio", value: "\(shot.dose.fixed()) → \(shot.yield.fixed())g", sub: ShotFormatter.ratio(shot.ratio))
-                Divider().frame(height: 28)
-                metric("Time", value: "\(shot.totalTime.fixed())s", sub: ShotFormatter.preBrew(pulse: shot.preBrewPulse, pause: shot.preBrewPause))
-                Divider().frame(height: 28)
-                metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: "FP \(shot.fullPressureTime.fixed())s")
+            if shot.brewMethod == .pourOver {
+                HStack(spacing: 0) {
+                    metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
+                    Divider().frame(height: 28)
+                    metric("Water", value: "\(shot.dose.fixed()) → \(shot.yield.fixed(0))g", sub: ShotFormatter.ratio(shot.ratio, method: .pourOver))
+                    Divider().frame(height: 28)
+                    metric("Drawdown", value: ShotFormatter.drawdown(shot.totalTime), sub: ShotFormatter.bloom(water: shot.bloomWater, pause: shot.preBrewPause))
+                    Divider().frame(height: 28)
+                    metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: ShotFormatter.pours(count: shot.pourCount, agitation: shot.agitation))
+                }
+            } else {
+                HStack(spacing: 0) {
+                    metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
+                    Divider().frame(height: 28)
+                    metric("Ratio", value: "\(shot.dose.fixed()) → \(shot.yield.fixed())g", sub: ShotFormatter.ratio(shot.ratio))
+                    Divider().frame(height: 28)
+                    metric("Time", value: "\(shot.totalTime.fixed())s", sub: ShotFormatter.preBrew(pulse: shot.preBrewPulse, pause: shot.preBrewPause))
+                    Divider().frame(height: 28)
+                    metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: "FP \(shot.fullPressureTime.fixed())s")
+                }
             }
 
             if let tweak = shot.actionableNextTweak, !tweak.isEmpty {
@@ -536,6 +592,8 @@ private struct LastRecipeCard: View {
             Text(sub)
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity)
     }

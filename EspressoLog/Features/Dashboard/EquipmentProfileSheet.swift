@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Sheet for editing the active equipment setup (Machine, Grinder, Basket, Puck Screen).
+/// Sheet for editing the active equipment setup (Machine, Grinder, Basket, Puck Screen, Dripper).
 struct EquipmentProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -13,6 +13,7 @@ struct EquipmentProfileSheet: View {
     @State private var grinderZeroOffset: Int
     @State private var basket: String
     @State private var puckScreen: String
+    @State private var defaultDripper: String
 
     private static let offsetPresets = [-3, -2, -1, 0, 1, 2, 3]
 
@@ -35,6 +36,7 @@ struct EquipmentProfileSheet: View {
         _grinderZeroOffset = State(initialValue: seed.grinderZeroOffset)
         _basket = State(initialValue: seed.basket)
         _puckScreen = State(initialValue: seed.puckScreen ?? "1.7mm")
+        _defaultDripper = State(initialValue: seed.defaultDripper)
     }
 
     var body: some View {
@@ -73,10 +75,10 @@ struct EquipmentProfileSheet: View {
                 } header: {
                     Text("Hardware")
                 } footer: {
-                    Text("Integer offset of the relocated zero pin on your grinder. Actual grind adjustments stay positive (0.0 – 10.0).")
+                    Text("Integer offset of the relocated zero pin on your grinder. Actual grind adjustments stay positive (0.0 – 16.0).")
                 }
 
-                Section("Basket") {
+                Section("Espresso Basket") {
                     TextField("Basket", text: $basket)
                     ScrollView(.horizontal) {
                         HStack(spacing: 6) {
@@ -105,6 +107,21 @@ struct EquipmentProfileSheet: View {
                     }
                     .scrollIndicators(.hidden)
                 }
+
+                Section("Pour Over Dripper") {
+                    TextField("Default Dripper", text: $defaultDripper)
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 6) {
+                            ForEach(ShotLoggingViewModel.dripperPresets, id: \.self) { preset in
+                                TagChip(title: preset, isSelected: defaultDripper == preset, tint: .teal) {
+                                    defaultDripper = preset
+                                }
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .scrollIndicators(.hidden)
+                }
             }
             .navigationTitle("Equipment Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -126,6 +143,8 @@ struct EquipmentProfileSheet: View {
         let trimmedBasket = basket.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedScreen = puckScreen.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedScreen: String? = trimmedScreen.isEmpty ? nil : trimmedScreen
+        let trimmedDripper = defaultDripper.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedDripper = trimmedDripper.isEmpty ? "Hario V60 01" : trimmedDripper
 
         if let existing, existing.shots.isEmpty {
             existing.machineName = trimmedMachine
@@ -133,13 +152,15 @@ struct EquipmentProfileSheet: View {
             existing.grinderZeroOffset = grinderZeroOffset
             existing.basket = trimmedBasket
             existing.puckScreen = normalizedScreen
+            existing.defaultDripper = normalizedDripper
             context.activate(existing)
         } else if let existing,
                   existing.machineName == trimmedMachine,
                   existing.grinderName == trimmedGrinder,
                   existing.grinderZeroOffset == grinderZeroOffset,
                   existing.basket == trimmedBasket,
-                  existing.puckScreen == normalizedScreen {
+                  existing.puckScreen == normalizedScreen,
+                  existing.defaultDripper == normalizedDripper {
             context.activate(existing)
         } else {
             // Preserve the equipment snapshot on earlier pulls by activating a new profile.
@@ -149,6 +170,7 @@ struct EquipmentProfileSheet: View {
                 grinderZeroOffset: grinderZeroOffset,
                 basket: trimmedBasket,
                 puckScreen: normalizedScreen,
+                defaultDripper: normalizedDripper,
                 isActive: true
             )
             context.insert(profile)

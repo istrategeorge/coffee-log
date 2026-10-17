@@ -1,5 +1,75 @@
 import Foundation
 
+/// Whether a log entry is an espresso pull or a filter pour over brew.
+enum BrewMethod: String, Codable, CaseIterable, Identifiable, Sendable {
+    case espresso
+    case pourOver
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .espresso: "Espresso"
+        case .pourOver: "Pour Over"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .espresso: "ESP"
+        case .pourOver: "PO"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .espresso: "cup.and.saucer.fill"
+        case .pourOver: "mug.fill"
+        }
+    }
+}
+
+/// Agitation technique applied during a pour over brew.
+enum PourAgitation: String, Codable, CaseIterable, Identifiable, Sendable {
+    case gentle
+    case moderateSwirl
+    case heavyWetWDT
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .gentle: "Gentle"
+        case .moderateSwirl: "Swirl / Spin"
+        case .heavyWetWDT: "Wet WDT"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .gentle: "Gentle"
+        case .moderateSwirl: "Swirl"
+        case .heavyWetWDT: "Wet WDT"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .gentle: "Low-agitation center/spiral pour · fast drawdown & clarity"
+        case .moderateSwirl: "Rao spin on bloom & final pour · flat bed & even extraction"
+        case .heavyWetWDT: "Bloom stir / high agitation · maximizes extraction & body"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .gentle: "wind"
+        case .moderateSwirl: "tornado"
+        case .heavyWetWDT: "wand.and.rays"
+        }
+    }
+}
+
 /// How beans are fed into the grinder. Affects fines production on flat-burr single-dosers.
 enum FeedMethod: String, Codable, CaseIterable, Identifiable, Sendable {
     case slowFeed
@@ -37,7 +107,7 @@ enum FeedMethod: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Visual read of the stream coming off the basket.
+/// Visual read of the stream (espresso) or drawdown & coffee bed (pour over).
 enum FlowQuality: String, Codable, CaseIterable, Identifiable, Sendable {
     case smoothCone
     case fastGushing
@@ -47,21 +117,36 @@ enum FlowQuality: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 
     var label: String {
-        switch self {
-        case .smoothCone: "Smooth"
-        case .fastGushing: "Gushing"
-        case .chokedDrip: "Choked"
-        case .channelingSquirts: "Channel"
+        label(for: .espresso)
+    }
+
+    func label(for method: BrewMethod) -> String {
+        switch (method, self) {
+        case (.espresso, .smoothCone): "Smooth"
+        case (.espresso, .fastGushing): "Gushing"
+        case (.espresso, .chokedDrip): "Choked"
+        case (.espresso, .channelingSquirts): "Channel"
+        case (.pourOver, .smoothCone): "Flat Bed"
+        case (.pourOver, .fastGushing): "Fast Draw"
+        case (.pourOver, .chokedDrip): "Stalled"
+        case (.pourOver, .channelingSquirts): "Crater/Wall"
         }
     }
 
-    /// Badge shown in history rows. `nil` for a healthy flow.
+    /// Badge shown in history rows. `nil` for a healthy flow / flat bed.
     var badge: String? {
-        switch self {
-        case .smoothCone: nil
-        case .fastGushing: "⚡ Gushing"
-        case .chokedDrip: "💧 Choked"
-        case .channelingSquirts: "CH Channeling"
+        badge(for: .espresso)
+    }
+
+    func badge(for method: BrewMethod) -> String? {
+        switch (method, self) {
+        case (_, .smoothCone): nil
+        case (.espresso, .fastGushing): "⚡ Gushing"
+        case (.espresso, .chokedDrip): "💧 Choked"
+        case (.espresso, .channelingSquirts): "CH Channeling"
+        case (.pourOver, .fastGushing): "⚡ Fast Bypass"
+        case (.pourOver, .chokedDrip): "💧 Stalled Bed"
+        case (.pourOver, .channelingSquirts): "CH Crater/Wall"
         }
     }
 

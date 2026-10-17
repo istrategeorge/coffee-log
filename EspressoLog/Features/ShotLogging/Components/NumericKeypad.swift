@@ -4,6 +4,7 @@ import SwiftUI
 /// predictable, and never covers the tiles being edited.
 struct NumericKeypad: View {
     let field: NumericField
+    var method: BrewMethod = .espresso
     var onKey: (KeypadKey) -> Void
     var onNudge: (Int) -> Void
     var onNext: () -> Void
@@ -15,7 +16,7 @@ struct NumericKeypad: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                Text(field.label.uppercased())
+                Text(field.label(for: method).uppercased())
                     .font(.caption.weight(.semibold))
                     .tracking(0.8)
                     .foregroundStyle(.secondary)
@@ -42,8 +43,10 @@ struct NumericKeypad: View {
                 Button(action: onNext) {
                     VStack(spacing: 4) {
                         Image(systemName: field.next == nil ? "checkmark" : "arrow.right")
-                        Text(field.next?.label ?? "Done")
+                        Text(field.next?.label(for: method) ?? "Done")
                             .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
                 }
                 .buttonStyle(KeypadButtonStyle(prominent: true))
@@ -70,7 +73,7 @@ struct NumericKeypad: View {
     }
 
     private func nudgeButton(_ direction: Int) -> some View {
-        let step = field.nudgeStep
+        let step = field.nudgeStep(for: method)
         let text = step < 1 ? step.fixed() : step.trimmed
         return Button { onNudge(direction) } label: {
             Text("\(direction < 0 ? "−" : "+")\(text)")

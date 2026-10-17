@@ -86,12 +86,13 @@ struct RestBadge: View {
     }
 }
 
-/// `⚡ Gushing` · `💧 Choked` · `CH Channeling`. Renders nothing for a smooth cone.
+/// `⚡ Gushing` · `💧 Choked` · `CH Channeling` (or Pour Over bed equivalents). Renders nothing for a smooth cone / flat bed.
 struct FlowBadge: View {
     let flow: FlowQuality
+    var method: BrewMethod = .espresso
 
     var body: some View {
-        if let badge = flow.badge {
+        if let badge = flow.badge(for: method) {
             Text(badge)
                 .font(.caption2.weight(.bold))
                 .padding(.horizontal, 6)
@@ -99,6 +100,42 @@ struct FlowBadge: View {
                 .foregroundStyle(flow.tint)
                 .background(flow.tint.opacity(0.15), in: Capsule())
         }
+    }
+}
+
+/// Compact pill identifying Espresso (`ESP`) vs Pour Over (`PO` / dripper).
+struct BrewMethodBadge: View {
+    let method: BrewMethod
+    var dripper: String?
+
+    private var tint: Color {
+        method == .pourOver ? .teal : .brown
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: method.symbol)
+                .font(.system(size: 9, weight: .bold))
+            Text(method == .pourOver ? (dripper.map { Self.shortDripper($0) } ?? "PO") : "ESP")
+                .font(.caption2.weight(.bold))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .foregroundStyle(tint)
+        .background(tint.opacity(0.15), in: Capsule())
+    }
+
+    private static func shortDripper(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "PO" }
+        if trimmed.localizedStandardContains("V60") { return "V60" }
+        if trimmed.localizedStandardContains("Origami") { return "Origami" }
+        if trimmed.localizedStandardContains("Orea") { return "Orea" }
+        if trimmed.localizedStandardContains("Kalita") { return "Kalita" }
+        if trimmed.localizedStandardContains("Switch") { return "Switch" }
+        if trimmed.localizedStandardContains("Chemex") { return "Chemex" }
+        if trimmed.localizedStandardContains("AeroPress") { return "AeroPress" }
+        return String(trimmed.prefix(8))
     }
 }
 

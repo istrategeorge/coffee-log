@@ -8,22 +8,27 @@ enum NumericField: Int, CaseIterable, Identifiable, Sendable {
 
     var id: Int { rawValue }
 
-    var label: String {
+    var label: String { label(for: .espresso) }
+
+    func label(for method: BrewMethod) -> String {
         switch self {
         case .dose: "Dose"
-        case .yield: "Yield"
-        case .time: "Time"
+        case .yield: method == .pourOver ? "Water" : "Yield"
+        case .time: method == .pourOver ? "Drawdown" : "Time"
         case .temperature: "Temp"
-        case .pulse: "PB On"
-        case .pause: "PB Wait"
+        case .pulse: method == .pourOver ? "Bloom H₂O" : "PB On"
+        case .pause: method == .pourOver ? "Bloom Wait" : "PB Wait"
         case .rpm: "RPM"
         }
     }
 
-    var unit: String {
+    var unit: String { unit(for: .espresso) }
+
+    func unit(for method: BrewMethod) -> String {
         switch self {
         case .dose, .yield: "g"
-        case .time, .pulse, .pause: "s"
+        case .pulse: method == .pourOver ? "g" : "s"
+        case .time, .pause: "s"
         case .temperature: "°C"
         case .rpm: ""
         }
@@ -31,40 +36,46 @@ enum NumericField: Int, CaseIterable, Identifiable, Sendable {
 
     var fractionDigits: Int { self == .rpm ? 0 : 1 }
 
-    var maxIntegerDigits: Int {
+    func maxIntegerDigits(for method: BrewMethod) -> Int {
         switch self {
-        case .yield, .time: 3
+        case .yield: method == .pourOver ? 4 : 3
+        case .time: 3
+        case .pulse, .pause: method == .pourOver ? 3 : 2
         case .rpm: 4
         default: 2
         }
     }
 
-    var range: ClosedRange<Double> {
+    func range(for method: BrewMethod) -> ClosedRange<Double> {
         switch self {
-        case .dose: 1...40
-        case .yield: 1...150
-        case .time: 1...180
+        case .dose: method == .pourOver ? 5...60 : 1...40
+        case .yield: method == .pourOver ? 50...1000 : 1...150
+        case .time: method == .pourOver ? 30...600 : 1...180
         case .temperature: 80...100
-        case .pulse, .pause: 0...30
+        case .pulse: method == .pourOver ? 0...250 : 0...30
+        case .pause: method == .pourOver ? 0...180 : 0...30
         case .rpm: 0...2500
         }
     }
 
-    var nudgeStep: Double {
+    func nudgeStep(for method: BrewMethod) -> Double {
         switch self {
-        case .dose: 0.1
-        case .yield, .temperature, .pulse, .pause: 0.5
-        case .time: 1
+        case .dose: method == .pourOver ? 0.5 : 0.1
+        case .yield: method == .pourOver ? 5.0 : 0.5
+        case .time: method == .pourOver ? 5.0 : 1.0
+        case .temperature: 0.5
+        case .pulse, .pause: method == .pourOver ? 5.0 : 0.5
         case .rpm: 100
         }
     }
 
     var next: NumericField? { NumericField(rawValue: rawValue + 1) }
 
-    func clamp(_ value: Double) -> Double {
+    func clamp(_ value: Double, for method: BrewMethod = .espresso) -> Double {
         let scale = pow(10, Double(fractionDigits))
         let rounded = (value * scale).rounded() / scale
-        return min(max(rounded, range.lowerBound), range.upperBound)
+        let bounds = range(for: method)
+        return min(max(rounded, bounds.lowerBound), bounds.upperBound)
     }
 }
 
@@ -79,10 +90,20 @@ enum KeypadKey: Hashable, Sendable {
 final class ShotLoggingViewModel {
     static let defaultFlavorTags = [
         "Juicy Peach", "Raspberry", "Honey", "Floral", "Citrus", "Stone Fruit",
-        "Caramel", "Chocolate", "Tea-like", "Lime",
+        "Caramel", "Chocolate", "Tea-like", "Lime", "Bergamot", "Jasmine",
     ]
-    /// Positive grind wheel range in tenths: 0.0 … 10.0.
-    static let grindScale: ClosedRange<Int> = 0...100
+    static let dripperPresets = [
+        "Hario V60 01",
+        "Hario V60 02",
+        "Origami S",
+        "Orea V4",
+        "Kalita Wave 185",
+        "Hario Switch",
+        "Chemex",
+        "AeroPress",
+    ]
+    /// Positive grind wheel range in tenths: 0.0 … 16.0 (covers both espresso and filter settings).
+    static let grindScale: ClosedRange<Int> = 0...160
     static let decimalSeparator = Locale.current.decimalSeparator ?? "."
 
     private static let logger = Logger(subsystem: "EspressoLog", category: "ShotLogging")
@@ -91,29 +112,37 @@ final class ShotLoggingViewModel {
 
     let bean: CoffeeBean
     let equipment: EquipmentProfile?
-    /// Values the draft was pre-filled from (last shot of this bean, else last shot overall).
-    let template: ShotSnapshot?
-    /// The "Next" note written on this bean's previous shot.
-    let previousTweak: String?
+    private let fallbackTemplate: ShotLog?
+    /// Values the draft was pre-filled from (last shot of this bean for the selected brew method).
+    private(set) var template: ShotSnapshot?
+    /// The "Next" note written on this bean's previous brew of the selected method.
+    private(set) var previousTweak: String?
     let restDays: Int
-    let grindRange: ClosedRange<Int>
+    private(set) var grindRange: ClosedRange<Int> = ShotLoggingViewModel.grindScale
     let flavorSuggestions: [String]
-    private let baselineFeed: FeedMethod
+    private var baselineFeed: FeedMethod = .slowFeed
 
     // MARK: Draft
 
-    var dose: Double
-    var yield: Double
-    var totalTime: Double
-    /// Positive grind stored in tenths (0 … 100 → 0.0 … 10.0).
-    var grindTenths: Int
+    var brewMethod: BrewMethod
+    var dose: Double = 18.0
+    var yield: Double = 36.0
+    var totalTime: Double = 28.0
+    /// Positive grind stored in tenths (0 … 160 → 0.0 … 16.0).
+    var grindTenths: Int = 10
     /// Integer offset of the grinder's relocated 0-point (e.g. -2, -1, 0, +1, +2).
-    var grinderZeroOffset: Int
+    var grinderZeroOffset: Int = 0
     var grinderRPM: Int?
-    var feedMethod: FeedMethod
-    var brewTemperature: Double
-    var preBrewPulse: Double
-    var preBrewPause: Double
+    var feedMethod: FeedMethod = .slowFeed
+    var brewTemperature: Double = 93.0
+    var preBrewPulse: Double = 0
+    var preBrewPause: Double = 0
+    /// Pour Over fields
+    var dripper: String = "Hario V60 01"
+    var bloomWater: Double = 45.0
+    var pourCount: Int = 3
+    var agitation: PourAgitation = .moderateSwirl
+
     var flowQuality: FlowQuality = .smoothCone
     var tasteBalance: TasteBalance?
     var flavorNotes: [String] = []
@@ -127,37 +156,100 @@ final class ShotLoggingViewModel {
     private(set) var keyPressCount = 0
     @ObservationIgnored private var bufferOriginal: Double?
 
-    init(bean: CoffeeBean, equipment: EquipmentProfile?, fallbackTemplate: ShotLog? = nil, now: Date = .now) {
+    init(
+        bean: CoffeeBean,
+        equipment: EquipmentProfile?,
+        fallbackTemplate: ShotLog? = nil,
+        initialMethod: BrewMethod? = nil,
+        now: Date = .now
+    ) {
         self.bean = bean
         self.equipment = equipment
-
-        let history = bean.shotsNewestFirst
-        let templateShot = history.first ?? fallbackTemplate
-        let template = templateShot?.snapshot
-        self.template = template
-        self.previousTweak = templateShot?.actionableNextTweak
+        self.fallbackTemplate = fallbackTemplate
         self.restDays = bean.restDays(on: now)
 
-        dose = template?.dose ?? 18.0
-        self.yield = template?.yield ?? 36.0
-        totalTime = template?.totalTime ?? 28.0
+        let history = bean.shotsNewestFirst
+        let resolvedMethod = initialMethod ?? (history.first ?? fallbackTemplate)?.brewMethod ?? .espresso
+        self.brewMethod = resolvedMethod
+        self.flavorSuggestions = Self.makeFlavorSuggestions(from: history)
 
-        let rawTenths = Int(((template?.grindSetting ?? 1.0) * 10).rounded())
-        let tenths = max(0, rawTenths)
-        grindTenths = tenths
-        grindRange = 0...max(Self.grindScale.upperBound, tenths)
-        grinderZeroOffset = template?.grinderZeroOffset ?? equipment?.grinderZeroOffset ?? 0
+        applyTemplate(for: resolvedMethod)
+    }
 
-        grinderRPM = template?.grinderRPM
-        feedMethod = template?.feedMethod ?? .slowFeed
-        baselineFeed = template?.feedMethod ?? .slowFeed
-        brewTemperature = template?.brewTemperature ?? 93.0
-        preBrewPulse = template?.preBrewPulse ?? 0
-        preBrewPause = template?.preBrewPause ?? 0
-        flowQuality = template?.flowQuality ?? .smoothCone
-        tasteBalance = template?.tasteBalance
+    /// Switches between Espresso and Pour Over, loading the latest recipe for that method.
+    func setBrewMethod(_ newMethod: BrewMethod) {
+        commitBuffer()
+        guard newMethod != brewMethod else { return }
+        brewMethod = newMethod
+        applyTemplate(for: newMethod)
+    }
 
-        flavorSuggestions = Self.makeFlavorSuggestions(from: history)
+    private func applyTemplate(for method: BrewMethod) {
+        let templateShot = bean.latestShot(for: method)
+            ?? (fallbackTemplate?.brewMethod == method ? fallbackTemplate : nil)
+        let snap = templateShot?.snapshot
+        template = snap
+        previousTweak = templateShot?.actionableNextTweak
+
+        if let snap {
+            dose = snap.dose
+            self.yield = snap.yield
+            totalTime = snap.totalTime
+            let tenths = max(0, Int((snap.grindSetting * 10).rounded()))
+            grindTenths = tenths
+            grindRange = 0...max(Self.grindScale.upperBound, tenths)
+            grinderZeroOffset = snap.grinderZeroOffset
+            grinderRPM = snap.grinderRPM
+            feedMethod = snap.feedMethod
+            baselineFeed = snap.feedMethod
+            brewTemperature = snap.brewTemperature
+            preBrewPulse = snap.preBrewPulse
+            preBrewPause = snap.preBrewPause
+            dripper = snap.dripper ?? equipment?.defaultDripper ?? "Hario V60 01"
+            bloomWater = snap.bloomWater > 0 ? snap.bloomWater : (snap.dose * 3).rounded()
+            pourCount = max(1, snap.pourCount)
+            agitation = snap.agitation
+            flowQuality = snap.flowQuality
+            tasteBalance = snap.tasteBalance
+        } else if method == .pourOver {
+            dose = 15.0
+            self.yield = 250.0
+            totalTime = 165.0
+            grindTenths = 65
+            grindRange = Self.grindScale
+            grinderZeroOffset = equipment?.grinderZeroOffset ?? 0
+            grinderRPM = 800
+            feedMethod = .slowFeed
+            baselineFeed = .slowFeed
+            brewTemperature = 93.0
+            preBrewPulse = 0
+            preBrewPause = 45.0
+            dripper = equipment?.defaultDripper ?? "Hario V60 01"
+            bloomWater = 45.0
+            pourCount = 3
+            agitation = .moderateSwirl
+            flowQuality = .smoothCone
+            tasteBalance = nil
+        } else {
+            dose = 18.0
+            self.yield = 36.0
+            totalTime = 28.0
+            grindTenths = 10
+            grindRange = Self.grindScale
+            grinderZeroOffset = equipment?.grinderZeroOffset ?? 0
+            grinderRPM = nil
+            feedMethod = .slowFeed
+            baselineFeed = .slowFeed
+            brewTemperature = 93.0
+            preBrewPulse = 0
+            preBrewPause = 0
+            dripper = equipment?.defaultDripper ?? "Hario V60 01"
+            bloomWater = 45.0
+            pourCount = 3
+            agitation = .moderateSwirl
+            flowQuality = .smoothCone
+            tasteBalance = nil
+        }
     }
 
     // MARK: Derived
@@ -175,6 +267,7 @@ final class ShotLoggingViewModel {
 
     var draft: ShotSnapshot {
         ShotSnapshot(
+            brewMethod: brewMethod,
             dose: dose,
             yield: self.yield,
             totalTime: totalTime,
@@ -185,6 +278,10 @@ final class ShotLoggingViewModel {
             brewTemperature: brewTemperature,
             preBrewPulse: preBrewPulse,
             preBrewPause: preBrewPause,
+            dripper: brewMethod == .pourOver ? dripper : nil,
+            bloomWater: bloomWater,
+            pourCount: pourCount,
+            agitation: agitation,
             flowQuality: flowQuality,
             tasteBalance: tasteBalance,
             restDays: restDays
@@ -217,7 +314,7 @@ final class ShotLoggingViewModel {
         case .yield: template.yield
         case .time: template.totalTime
         case .temperature: template.brewTemperature
-        case .pulse: template.preBrewPulse
+        case .pulse: brewMethod == .pourOver ? template.bloomWater : template.preBrewPulse
         case .pause: template.preBrewPause
         case .rpm: Double(template.grinderRPM ?? 0)
         }
@@ -232,7 +329,7 @@ final class ShotLoggingViewModel {
         case .yield: self.yield
         case .time: totalTime
         case .temperature: brewTemperature
-        case .pulse: preBrewPulse
+        case .pulse: brewMethod == .pourOver ? bloomWater : preBrewPulse
         case .pause: preBrewPause
         case .rpm: Double(grinderRPM ?? 0)
         }
@@ -244,7 +341,12 @@ final class ShotLoggingViewModel {
             return text.replacingOccurrences(of: ".", with: Self.decimalSeparator)
         }
         if field == .rpm, grinderRPM == nil { return "—" }
-        return value(for: field).fixed(field.fractionDigits)
+        let val = value(for: field)
+        if brewMethod == .pourOver, (field == .yield || field == .time || field == .pulse || field == .pause),
+           abs(val.rounded() - val) < 0.05 {
+            return val.fixed(0)
+        }
+        return val.fixed(field.fractionDigits)
     }
 
     func select(_ field: NumericField?) {
@@ -271,7 +373,7 @@ final class ShotLoggingViewModel {
                 guard parts[1].count < field.fractionDigits else { return }
             } else {
                 if text == "0" { text = "" }
-                guard text.count < field.maxIntegerDigits else { return }
+                guard text.count < field.maxIntegerDigits(for: brewMethod) else { return }
             }
             text += String(digit)
         case .decimal:
@@ -296,11 +398,11 @@ final class ShotLoggingViewModel {
         commitBuffer()
         keyPressCount += 1
         if field == .rpm, grinderRPM == nil {
-            grinderRPM = 1000
+            grinderRPM = brewMethod == .pourOver ? 800 : 1000
             return
         }
-        let next = value(for: field) + Double(direction) * field.nudgeStep
-        setValue(field.clamp(next), for: field)
+        let next = value(for: field) + Double(direction) * field.nudgeStep(for: brewMethod)
+        setValue(field.clamp(next, for: brewMethod), for: field)
     }
 
     private func commitBuffer() {
@@ -314,7 +416,7 @@ final class ShotLoggingViewModel {
             return
         }
         let parsed = Self.parse(text) ?? bufferOriginal ?? value(for: field)
-        setValue(field.clamp(parsed), for: field)
+        setValue(field.clamp(parsed, for: brewMethod), for: field)
     }
 
     private func setValue(_ newValue: Double, for field: NumericField) {
@@ -323,7 +425,12 @@ final class ShotLoggingViewModel {
         case .yield: self.yield = newValue
         case .time: totalTime = newValue
         case .temperature: brewTemperature = newValue
-        case .pulse: preBrewPulse = newValue
+        case .pulse:
+            if brewMethod == .pourOver {
+                bloomWater = newValue
+            } else {
+                preBrewPulse = newValue
+            }
         case .pause: preBrewPause = newValue
         case .rpm: grinderRPM = newValue > 0 ? Int(newValue.rounded()) : nil
         }
@@ -376,8 +483,10 @@ final class ShotLoggingViewModel {
         guard let tasteBalance else { return nil }
 
         let tweak = nextTweak.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDripper = dripper.trimmingCharacters(in: .whitespacesAndNewlines)
         let shot = ShotLog(
             timestamp: now,
+            brewMethod: brewMethod,
             dose: dose,
             yield: self.yield,
             totalTime: totalTime,
@@ -388,6 +497,10 @@ final class ShotLoggingViewModel {
             brewTemperature: brewTemperature,
             preBrewPulse: preBrewPulse,
             preBrewPause: preBrewPause,
+            dripper: brewMethod == .pourOver ? (trimmedDripper.isEmpty ? "Hario V60 01" : trimmedDripper) : nil,
+            bloomWater: bloomWater,
+            pourCount: pourCount,
+            agitation: agitation,
             flowQuality: flowQuality,
             tasteBalance: tasteBalance,
             flavorNotes: flavorNotes,
@@ -397,6 +510,9 @@ final class ShotLoggingViewModel {
         context.insert(shot)
         shot.bean = bean
         equipment?.grinderZeroOffset = grinderZeroOffset
+        if brewMethod == .pourOver, !trimmedDripper.isEmpty {
+            equipment?.defaultDripper = trimmedDripper
+        }
         shot.equipment = equipment
 
         do {

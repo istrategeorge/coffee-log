@@ -190,28 +190,70 @@ struct EspressoLogTests {
         #expect(!bean.matchesSearch("Ethiopia"))
     }
 
-    @Test("Every FlowQuality and TasteBalance combination yields actionable advice")
+    @Test("Every FlowQuality and TasteBalance combination yields actionable advice for Espresso and Pour Over")
     func flowAndBalanceMatrixAdvice() {
-        for flow in FlowQuality.allCases {
-            for balance in TasteBalance.allCases {
-                let snapshot = ShotSnapshot(
-                    dose: 20.0,
-                    yield: 48.0,
-                    totalTime: 29.0,
-                    grindSetting: 0.5,
-                    grinderZeroOffset: -1,
-                    grinderRPM: 1200,
-                    feedMethod: .slowFeed,
-                    brewTemperature: 93.5,
-                    preBrewPulse: 3.0,
-                    preBrewPause: 5.0,
-                    flowQuality: flow,
-                    tasteBalance: balance,
-                    restDays: 18
-                )
-                let insights = ExtractionInsightsEngine.insights(for: snapshot, baselineFeed: .slowFeed)
-                #expect(!insights.isEmpty)
+        for method in BrewMethod.allCases {
+            for flow in FlowQuality.allCases {
+                for balance in TasteBalance.allCases {
+                    let snapshot = ShotSnapshot(
+                        brewMethod: method,
+                        dose: method == .pourOver ? 15.0 : 20.0,
+                        yield: method == .pourOver ? 250.0 : 48.0,
+                        totalTime: method == .pourOver ? 165.0 : 29.0,
+                        grindSetting: method == .pourOver ? 6.5 : 0.5,
+                        grinderZeroOffset: -1,
+                        grinderRPM: method == .pourOver ? 800 : 1200,
+                        feedMethod: .slowFeed,
+                        brewTemperature: 93.5,
+                        preBrewPulse: 3.0,
+                        preBrewPause: method == .pourOver ? 45.0 : 5.0,
+                        dripper: method == .pourOver ? "Hario V60 01" : nil,
+                        bloomWater: 45.0,
+                        pourCount: 3,
+                        agitation: .moderateSwirl,
+                        flowQuality: flow,
+                        tasteBalance: balance,
+                        restDays: 18
+                    )
+                    let insights = ExtractionInsightsEngine.insights(for: snapshot, baselineFeed: .slowFeed)
+                    #expect(!insights.isEmpty)
+                }
             }
         }
+    }
+
+    @Test("Pour Over notebook formatting, template switching, and bag weight deduction")
+    @MainActor
+    func pourOverLoggingAndBagDeduction() throws {
+        let container = try ModelContainerFactory.make(inMemory: true)
+        SampleData.insertNotebookSample(in: container.mainContext)
+
+        let beans = try container.mainContext.fetch(FetchDescriptor<CoffeeBean>())
+        let bean = try #require(beans.first)
+
+        let vm = ShotLoggingViewModel(bean: bean, equipment: nil)
+        #expect(vm.brewMethod == .espresso)
+
+        // Switch to Pour Over -> loads sensible filter defaults (15g / 250g / 165s / G 6.5 / 3 pours)
+        vm.setBrewMethod(.pourOver)
+        #expect(vm.brewMethod == .pourOver)
+        #expect(vm.dose == 15.0)
+        #expect(vm.yield == 250.0)
+        #expect(vm.totalTime == 165.0)
+        #expect(vm.grindSetting == 6.5)
+        #expect(vm.bloomWater == 45.0)
+        #expect(vm.pourCount == 3)
+        #expect(vm.dripper == "Hario V60 01")
+
+        vm.tasteBalance = .balancedSweet
+        let savedPourOver = try #require(vm.save(in: container.mainContext))
+        #expect(savedPourOver.brewMethod == .pourOver)
+        #expect(savedPourOver.notebookLine.contains("V60 01"))
+        #expect(savedPourOver.notebookLine.contains("Blm 45g/45s"))
+        #expect(savedPourOver.notebookLine.contains("3p Swirl"))
+
+        // 60g from 3 espresso shots + 15g from 1 pour over = 75g used, 175g remaining
+        #expect(abs(bean.usedGrams - 75.0) < 0.001)
+        #expect(abs(bean.remainingGrams - 175.0) < 0.001)
     }
 }

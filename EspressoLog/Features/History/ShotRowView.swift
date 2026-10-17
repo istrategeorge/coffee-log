@@ -27,11 +27,14 @@ struct ShotRowView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if let equipment = shot.equipment {
-                    Label(equipment.fullLine, systemImage: "espressomachine")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    Label(
+                        equipment.fullLine(for: shot.brewMethod, dripper: shot.dripper),
+                        systemImage: shot.brewMethod == .pourOver ? "mug" : "espressomachine"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 }
                 notesLine
                 if let tweak = shot.actionableNextTweak, !tweak.isEmpty {
@@ -63,11 +66,12 @@ struct ShotRowView: View {
 
     private var headline: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(ShotFormatter.headline(dose: shot.dose, yield: shot.yield, time: shot.totalTime))
+            BrewMethodBadge(method: shot.brewMethod, dripper: shot.dripper)
+            Text(ShotFormatter.headline(dose: shot.dose, yield: shot.yield, time: shot.totalTime, method: shot.brewMethod))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(ShotFormatter.ratio(shot.ratio))
+                .minimumScaleFactor(0.75)
+            Text(ShotFormatter.ratio(shot.ratio, method: shot.brewMethod))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Spacer(minLength: 4)
@@ -80,7 +84,7 @@ struct ShotRowView: View {
         let notes = shot.flavorNotes.joined(separator: " · ")
         if shot.flowQuality.isIssue || !notes.isEmpty || showsBeanName {
             HStack(spacing: 6) {
-                FlowBadge(flow: shot.flowQuality)
+                FlowBadge(flow: shot.flowQuality, method: shot.brewMethod)
                 if showsBeanName, let bean = shot.bean {
                     Text(bean.name)
                         .font(.caption.weight(.semibold))
@@ -97,14 +101,14 @@ struct ShotRowView: View {
     }
 }
 
-/// Page header mirroring the paper log: bean, roast date, rest, basket, grinder.
+/// Page header mirroring the paper log: bean, roast date, rest, basket/dripper, grinder.
 struct NotebookHeader: View {
     let bean: CoffeeBean
     let equipment: EquipmentProfile?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("ESPRESSO LOG")
+            Text("ESPRESSO & POUR OVER LOG")
                 .font(.caption.weight(.bold))
                 .tracking(1.5)
                 .foregroundStyle(.secondary)
@@ -120,6 +124,12 @@ struct NotebookHeader: View {
                 GridRow {
                     field("Rest", value: "Day \(bean.restDays)\(bean.isFrozen ? " ❄︎" : "")")
                     field("Grinder", value: equipment?.grinderName ?? "—")
+                }
+                if let dripper = equipment?.defaultDripper, !dripper.isEmpty {
+                    GridRow {
+                        field("Bag", value: "\(bean.remainingGrams.fixed(0))g / \(bean.bagWeightGrams.fixed(0))g")
+                        field("Dripper", value: dripper)
+                    }
                 }
             }
             .font(.subheadline)
