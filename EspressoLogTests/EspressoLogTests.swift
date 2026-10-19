@@ -256,4 +256,37 @@ struct EspressoLogTests {
         #expect(abs(bean.usedGrams - 75.0) < 0.001)
         #expect(abs(bean.remainingGrams - 175.0) < 0.001)
     }
+
+    @Test("Marking a bag as done zeroes remaining weight/shots, tracks untracked grams, and caps rest days")
+    @MainActor
+    func markBagAsFinishedAndReopen() throws {
+        let container = try ModelContainerFactory.make(inMemory: true)
+        SampleData.insertNotebookSample(in: container.mainContext)
+
+        let beans = try container.mainContext.fetch(FetchDescriptor<CoffeeBean>())
+        let bean = try #require(beans.first)
+
+        // Before finishing: 60g logged of 250g -> 190g remaining, 9 shots left
+        #expect(!bean.isFinished)
+        #expect(abs(bean.remainingGrams - 190.0) < 0.001)
+        #expect(bean.estimatedShotsRemaining() == 9)
+
+        let finishDate = Date.now
+        bean.markFinished(on: finishDate)
+        #expect(bean.isFinished)
+        #expect(bean.remainingGrams == 0)
+        #expect(bean.remainingFraction == 0)
+        #expect(bean.estimatedShotsRemaining() == 0)
+        #expect(abs(bean.untrackedGrams - 190.0) < 0.001)
+
+        // Rest days stay capped at finishDate even weeks later
+        let futureDate = Calendar.current.date(byAdding: .day, value: 30, to: finishDate)!
+        #expect(bean.restDays(on: futureDate) == bean.restDays(on: finishDate))
+
+        // Reopen bag restores remaining weight and shots
+        bean.reopen()
+        #expect(!bean.isFinished)
+        #expect(abs(bean.remainingGrams - 190.0) < 0.001)
+        #expect(bean.estimatedShotsRemaining() == 9)
+    }
 }

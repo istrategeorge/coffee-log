@@ -16,11 +16,30 @@ struct BeanLibrarySheet: View {
         beans.filter { $0.matchesSearch(searchText) }
     }
 
+    private var openBeans: [CoffeeBean] {
+        filteredBeans.filter { !$0.isFinished }
+    }
+
+    private var finishedBeans: [CoffeeBean] {
+        filteredBeans.filter(\.isFinished)
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                ForEach(filteredBeans) { bean in
-                    beanRow(for: bean)
+                if !openBeans.isEmpty {
+                    Section("Open Bags") {
+                        ForEach(openBeans) { bean in
+                            beanRow(for: bean)
+                        }
+                    }
+                }
+                if !finishedBeans.isEmpty {
+                    Section("Finished Bags") {
+                        ForEach(finishedBeans) { bean in
+                            beanRow(for: bean)
+                        }
+                    }
                 }
             }
             .searchable(text: $searchText, prompt: "Search coffee, roaster, variety, process…")
@@ -65,7 +84,7 @@ struct BeanLibrarySheet: View {
                     HStack(spacing: 6) {
                         Text(bean.name)
                             .font(.headline)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(bean.isFinished ? .secondary : .primary)
                         if bean.bagNumber > 1 {
                             Text("Bag #\(bean.bagNumber)")
                                 .font(.caption2.weight(.bold))
@@ -85,16 +104,39 @@ struct BeanLibrarySheet: View {
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
-                        RestBadge(days: bean.restDays, isFrozen: bean.isFrozen, compact: true)
-                        Text("\(bean.remainingGrams.fixed(0))/\(bean.bagWeightGrams.fixed(0))g · ~\(shotsLeft) shots (@\(doseUsed.fixed())g)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        RestBadge(days: bean.restDays, isFrozen: bean.isFrozen, isFinished: bean.isFinished, compact: true)
+                        if bean.isFinished {
+                            Text("Finished · \(bean.usedGrams.fixed(0))/\(bean.bagWeightGrams.fixed(0))g logged")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("\(bean.remainingGrams.fixed(0))/\(bean.bagWeightGrams.fixed(0))g · ~\(shotsLeft) doses (@\(doseUsed.fixed())g)")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
             .buttonStyle(.plain)
 
             Spacer()
+
+            Button {
+                withAnimation(.snappy) {
+                    if bean.isFinished {
+                        bean.reopen()
+                    } else {
+                        bean.markFinished()
+                    }
+                    try? context.save()
+                }
+            } label: {
+                Image(systemName: bean.isFinished ? "arrow.uturn.backward.circle" : "checkmark.circle")
+                    .font(.title3)
+                    .foregroundStyle(bean.isFinished ? .secondary : .green)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(bean.isFinished ? "Reopen \(bean.name)" : "Mark \(bean.name) as done")
 
             Button {
                 dismiss()
@@ -111,5 +153,23 @@ struct BeanLibrarySheet: View {
             .accessibilityLabel("Start a new bag of \(bean.name)")
         }
         .padding(.vertical, 4)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button {
+                withAnimation(.snappy) {
+                    if bean.isFinished {
+                        bean.reopen()
+                    } else {
+                        bean.markFinished()
+                    }
+                    try? context.save()
+                }
+            } label: {
+                Label(
+                    bean.isFinished ? "Reopen" : "Bag Done",
+                    systemImage: bean.isFinished ? "arrow.uturn.backward.circle" : "checkmark.circle.fill"
+                )
+            }
+            .tint(bean.isFinished ? .orange : .green)
+        }
     }
 }

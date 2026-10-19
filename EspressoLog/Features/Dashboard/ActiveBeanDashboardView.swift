@@ -35,7 +35,15 @@ struct ActiveBeanDashboardView: View {
     }
 
     private var activeBean: CoffeeBean? {
-        beans.first(where: \.isActive) ?? beans.first
+        beans.first(where: \.isActive) ?? beans.first(where: { !$0.isFinished }) ?? beans.first
+    }
+
+    private var openBeans: [CoffeeBean] {
+        beans.filter { !$0.isFinished }
+    }
+
+    private var finishedBeans: [CoffeeBean] {
+        beans.filter(\.isFinished)
     }
 
     private var activeEquipment: EquipmentProfile? {
@@ -129,24 +137,52 @@ struct ActiveBeanDashboardView: View {
                         Label("Search All Coffees…", systemImage: "magnifyingglass")
                     }
                     Divider()
-                    Section("Active Bag") {
-                        ForEach(beans) { bean in
-                            let bagSuffix = bean.bagNumber > 1 ? " #\(bean.bagNumber)" : ""
-                            Button {
-                                withAnimation(.snappy) {
-                                    context.activate(bean)
-                                    try? context.save()
+                    if !openBeans.isEmpty {
+                        Section("Open Bags") {
+                            ForEach(openBeans) { bean in
+                                let bagSuffix = bean.bagNumber > 1 ? " #\(bean.bagNumber)" : ""
+                                Button {
+                                    withAnimation(.snappy) {
+                                        context.activate(bean)
+                                        try? context.save()
+                                    }
+                                } label: {
+                                    Label(
+                                        "\(bean.name)\(bagSuffix) · \(bean.roaster) (Day \(bean.restDays))",
+                                        systemImage: bean.persistentModelID == activeBean?.persistentModelID ? "checkmark.circle.fill" : "circle"
+                                    )
                                 }
-                            } label: {
-                                Label(
-                                    "\(bean.name)\(bagSuffix) · \(bean.roaster) (Day \(bean.restDays))",
-                                    systemImage: bean.persistentModelID == activeBean?.persistentModelID ? "checkmark.circle.fill" : "circle"
-                                )
+                            }
+                        }
+                    }
+                    if !finishedBeans.isEmpty {
+                        Section("Finished Bags") {
+                            ForEach(finishedBeans) { bean in
+                                let bagSuffix = bean.bagNumber > 1 ? " #\(bean.bagNumber)" : ""
+                                Button {
+                                    withAnimation(.snappy) {
+                                        context.activate(bean)
+                                        try? context.save()
+                                    }
+                                } label: {
+                                    Label(
+                                        "\(bean.name)\(bagSuffix) · \(bean.roaster) (Done)",
+                                        systemImage: bean.persistentModelID == activeBean?.persistentModelID ? "checkmark.seal.fill" : "archivebox"
+                                    )
+                                }
                             }
                         }
                     }
                     Divider()
                     if let activeBean {
+                        Button {
+                            toggleFinished(for: activeBean)
+                        } label: {
+                            Label(
+                                activeBean.isFinished ? "Reopen \(activeBean.name)" : "Mark \(activeBean.name) as Done",
+                                systemImage: activeBean.isFinished ? "arrow.uturn.backward.circle" : "checkmark.circle"
+                            )
+                        }
                         Button {
                             activeSheet = .rebuyBean(activeBean)
                         } label: {
@@ -196,7 +232,9 @@ struct ActiveBeanDashboardView: View {
                     bean: bean,
                     fallbackDose: fallbackDose,
                     onToggleStorage: { toggleStorage(for: bean) },
+                    onToggleFinished: { toggleFinished(for: bean) },
                     onRebuy: { activeSheet = .rebuyBean(bean) },
+                    onNewBean: { activeSheet = .newBean },
                     onEdit: { activeSheet = .editBean(bean) }
                 )
 
@@ -357,6 +395,17 @@ struct ActiveBeanDashboardView: View {
             try? context.save()
         }
     }
+
+    private func toggleFinished(for bean: CoffeeBean) {
+        withAnimation(.snappy) {
+            if bean.isFinished {
+                bean.reopen()
+            } else {
+                bean.markFinished()
+            }
+            try? context.save()
+        }
+    }
 }
 
 // MARK: - Subviews
@@ -366,7 +415,9 @@ private struct ActiveBeanCard: View {
     let bean: CoffeeBean
     let fallbackDose: Double
     var onToggleStorage: () -> Void
+    var onToggleFinished: () -> Void
     var onRebuy: () -> Void
+    var onNewBean: () -> Void
     var onEdit: () -> Void
 
     var body: some View {
@@ -409,39 +460,101 @@ private struct ActiveBeanCard: View {
                         .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    RestBadge(days: days, isFrozen: bean.isFrozen)
+                    RestBadge(days: days, isFrozen: bean.isFrozen, isFinished: bean.isFinished)
                 }
 
                 // Bag Weight & Remaining Shots Meter
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label {
-                            Text("~\(shotsLeft) \(shotsLeft == 1 ? "dose" : "doses") left")
-                                .font(.caption.weight(.bold).monospacedDigit())
-                        } icon: {
-                            Image(systemName: "scalemass.fill")
-                                .font(.caption)
-                                .foregroundStyle(shotsLeft <= 2 ? Color.orange : Color.accentColor)
+                if bean.isFinished {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(.green)
+                            Text("Bag Finished")
+                                .font(.caption.weight(.bold))
+                            Text("· \(bean.usedGrams.fixed(0))g logged of \(bean.bagWeightGrams.fixed(0))g\(bean.untrackedGrams > 0 ? " (\(bean.untrackedGrams.fixed(0))g untracked)" : "")")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Spacer()
                         }
-                        Text("(\(bean.remainingGrams.fixed(0))g / \(bean.bagWeightGrams.fixed(0))g · @\(dose.fixed())g)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button(action: onRebuy) {
-                            Label("New Bag", systemImage: "plus.square.on.square")
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(.tertiarySystemFill), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
 
-                    ProgressView(value: bean.remainingFraction)
-                        .tint(shotsLeft <= 2 ? .orange : .accentColor)
+                        HStack(spacing: 8) {
+                            Button(action: onToggleFinished) {
+                                Label("Reopen", systemImage: "arrow.uturn.backward")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color(.tertiarySystemFill), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: onRebuy) {
+                                Label("Re-buy Bag", systemImage: "shippingbox.and.arrow.backward")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .foregroundStyle(.tint)
+                                    .background(Color.accentColor.opacity(0.14), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: onNewBean) {
+                                Label("New Coffee", systemImage: "plus")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color(.tertiarySystemFill), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Label {
+                                Text("~\(shotsLeft) \(shotsLeft == 1 ? "dose" : "doses") left")
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                            } icon: {
+                                Image(systemName: "scalemass.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(shotsLeft <= 2 ? Color.orange : Color.accentColor)
+                            }
+                            Text("(\(bean.remainingGrams.fixed(0))g / \(bean.bagWeightGrams.fixed(0))g · @\(dose.fixed())g)")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Spacer()
+                            Button(action: onToggleFinished) {
+                                Label("Bag Done", systemImage: "checkmark.circle")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .foregroundStyle(.secondary)
+                                    .background(Color(.tertiarySystemFill), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Mark coffee bag as done")
+
+                            Button(action: onRebuy) {
+                                Label("New Bag", systemImage: "plus.square.on.square")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color(.tertiarySystemFill), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        ProgressView(value: bean.remainingFraction)
+                            .tint(shotsLeft <= 2 ? .orange : .accentColor)
+                    }
+                    .padding(10)
+                    .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .padding(10)
-                .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 Divider()
 
@@ -463,6 +576,7 @@ private struct ActiveBeanCard: View {
             .padding()
             .cardBackground()
             .sensoryFeedback(.selection, trigger: bean.isFrozen)
+            .sensoryFeedback(.success, trigger: bean.isFinished)
         }
     }
 

@@ -59,20 +59,29 @@ struct SectionLabel: View {
 
 // MARK: - Badges
 
-/// Live `Rest: Day XX` badge. Pulses while resting at room temperature; shows a snowflake when frozen.
+/// Live `Rest: Day XX` badge. Pulses while resting at room temperature; shows a snowflake when frozen, or a seal when finished.
 struct RestBadge: View {
     let days: Int
     let isFrozen: Bool
+    var isFinished: Bool = false
     var compact = false
 
-    private var tint: Color { isFrozen ? .cyan : .green }
+    private var tint: Color {
+        if isFinished { return .secondary }
+        return isFrozen ? .cyan : .green
+    }
+
+    private var iconName: String {
+        if isFinished { return "checkmark.seal.fill" }
+        return isFrozen ? "snowflake" : "circle.fill"
+    }
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: isFrozen ? "snowflake" : "circle.fill")
-                .font(.system(size: isFrozen ? 12 : 7, weight: .bold))
-                .symbolEffect(.pulse, options: .repeating, isActive: !isFrozen)
-            Text(compact ? "Day \(days)" : "Rest: Day \(days)")
+            Image(systemName: iconName)
+                .font(.system(size: (isFrozen || isFinished) ? 12 : 7, weight: .bold))
+                .symbolEffect(.pulse, options: .repeating, isActive: !isFrozen && !isFinished)
+            Text(compact ? (isFinished ? "Done · R\(days)" : "Day \(days)") : (isFinished ? "Done · Day \(days)" : "Rest: Day \(days)"))
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(days)))
@@ -82,7 +91,7 @@ struct RestBadge: View {
         .foregroundStyle(tint)
         .background(tint.opacity(0.15), in: Capsule())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rest day \(days)\(isFrozen ? ", paused in freezer" : "")")
+        .accessibilityLabel("Rest day \(days)\(isFinished ? ", bag finished" : (isFrozen ? ", paused in freezer" : ""))")
     }
 }
 

@@ -20,6 +20,9 @@ final class CoffeeBean {
     var bagNumber: Int = 1
     /// The bean shown on the dashboard. Exactly one bean should be active at a time.
     var isActive: Bool = false
+    /// Whether this physical bag has been finished / emptied (even if not every pull was logged).
+    var isFinished: Bool = false
+    var finishedDate: Date?
     var createdAt: Date = Date.now
 
     @Relationship(deleteRule: .cascade, inverse: \ShotLog.bean)
@@ -35,7 +38,9 @@ final class CoffeeBean {
         bagNumber: Int = 1,
         isFrozen: Bool = false,
         freezeDate: Date? = nil,
-        isActive: Bool = false
+        isActive: Bool = false,
+        isFinished: Bool = false,
+        finishedDate: Date? = nil
     ) {
         self.name = name
         self.roaster = roaster
@@ -47,6 +52,8 @@ final class CoffeeBean {
         self.isFrozen = isFrozen
         self.freezeDate = isFrozen ? (freezeDate ?? .now) : nil
         self.isActive = isActive
+        self.isFinished = isFinished
+        self.finishedDate = isFinished ? (finishedDate ?? .now) : nil
         self.createdAt = .now
     }
 }
@@ -57,14 +64,16 @@ extension CoffeeBean {
     /// Rest days as of right now (live badge value).
     var restDays: Int { restDays(on: .now) }
 
-    /// Rest days on a given brew date. Calculation is paused while the bean is frozen
-    /// and excludes any days banked from previous freezer cycles.
+    /// Rest days on a given brew date. Calculation is paused while the bean is frozen,
+    /// capped once the bag is marked finished, and excludes any days banked from previous freezer cycles.
     func restDays(on date: Date = .now, calendar: Calendar = .current) -> Int {
         Self.restDays(
             roastDate: roastDate,
             isFrozen: isFrozen,
             freezeDate: freezeDate,
             frozenDaysBanked: frozenDaysBanked,
+            isFinished: isFinished,
+            finishedDate: finishedDate,
             on: date,
             calendar: calendar
         )
@@ -76,10 +85,15 @@ extension CoffeeBean {
         isFrozen: Bool,
         freezeDate: Date?,
         frozenDaysBanked: Int,
+        isFinished: Bool = false,
+        finishedDate: Date? = nil,
         on date: Date,
         calendar: Calendar = .current
     ) -> Int {
         var end = date
+        if isFinished, let finishedDate, finishedDate < end {
+            end = finishedDate
+        }
         if isFrozen, let freezeDate, freezeDate < end {
             end = freezeDate
         }
@@ -113,6 +127,20 @@ extension CoffeeBean {
         isFrozen = false
         freezeDate = nil
     }
+
+    /// Marks the bag as finished / empty (for when not all pulls were tracked).
+    func markFinished(on date: Date = .now) {
+        guard !isFinished else { return }
+        isFinished = true
+        finishedDate = date
+    }
+
+    /// Reopens a finished bag, restoring remaining weight calculation from logged pulls.
+    func reopen() {
+        guard isFinished else { return }
+        isFinished = false
+        finishedDate = nil
+    }
 }
 
 // MARK: - Bag Inventory & Search
@@ -144,14 +172,19 @@ extension CoffeeBean {
         shots.reduce(0) { $0 + $1.dose }
     }
 
-    /// Estimated grams remaining in this bag.
-    var remainingGrams: Double {
+    /// Unlogged grams (difference between starting bag weight and logged pulls).
+    var untrackedGrams: Double {
         max(0, bagWeightGrams - usedGrams)
+    }
+
+    /// Estimated grams remaining in this bag (0 when marked finished).
+    var remainingGrams: Double {
+        isFinished ? 0 : max(0, bagWeightGrams - usedGrams)
     }
 
     /// Fraction of the bag remaining (0.0 ... 1.0).
     var remainingFraction: Double {
-        guard bagWeightGrams > 0 else { return 0 }
+        guard !isFinished, bagWeightGrams > 0 else { return 0 }
         return min(1, max(0, remainingGrams / bagWeightGrams))
     }
 
@@ -165,6 +198,7 @@ extension CoffeeBean {
 
     /// How many whole pulls are left in this bag based on `usualDose(fallback:)`.
     func estimatedShotsRemaining(fallbackDose: Double = 20.0) -> Int {
+        guard !isFinished else { return 0 }
         let dose = usualDose(fallback: fallbackDose)
         guard dose > 0 else { return 0 }
         return max(0, Int((remainingGrams / dose).rounded(.down)))

@@ -17,6 +17,8 @@ struct BeanEditorSheet: View {
     @State private var roastDate: Date
     @State private var isFrozen: Bool
     @State private var freezeDate: Date
+    @State private var isFinished: Bool
+    @State private var markPreviousFinished: Bool
     @State private var pastCoffeeSearch: String = ""
 
     init(bean: CoffeeBean? = nil, rebuyOf template: CoffeeBean? = nil) {
@@ -32,6 +34,8 @@ struct BeanEditorSheet: View {
         _roastDate = State(initialValue: bean?.roastDate ?? defaultRoast)
         _isFrozen = State(initialValue: bean?.isFrozen ?? false)
         _freezeDate = State(initialValue: bean?.freezeDate ?? .now)
+        _isFinished = State(initialValue: bean?.isFinished ?? false)
+        _markPreviousFinished = State(initialValue: template != nil)
     }
 
     private var canSave: Bool {
@@ -46,6 +50,8 @@ struct BeanEditorSheet: View {
             isFrozen: isFrozen,
             freezeDate: isFrozen ? freezeDate : nil,
             frozenDaysBanked: existing?.frozenDaysBanked ?? 0,
+            isFinished: isFinished,
+            finishedDate: isFinished ? (existing?.finishedDate ?? .now) : nil,
             on: .now
         )
     }
@@ -87,6 +93,7 @@ struct BeanEditorSheet: View {
     }
 
     private var estimatedTotalShots: Int {
+        guard !isFinished else { return 0 }
         let used = existing?.usedGrams ?? 0
         let remaining = max(0, bagWeightGrams - used)
         return max(0, Int((remaining / inferredUsualDose).rounded(.down)))
@@ -144,16 +151,28 @@ struct BeanEditorSheet: View {
                         .padding(.vertical, 2)
                     }
                     .scrollIndicators(.hidden)
+
+                    if existing != nil {
+                        Toggle(isOn: $isFinished.animation()) {
+                            Label("Bag Finished (Empty)", systemImage: isFinished ? "checkmark.seal.fill" : "shippingbox")
+                        }
+                    } else if matchingBags.contains(where: { !$0.isFinished }) {
+                        Toggle(isOn: $markPreviousFinished) {
+                            Label("Mark Previous Bag as Done", systemImage: "checkmark.circle")
+                        }
+                    }
                 } header: {
                     Text("Bag Weight & Shot Estimate")
                 } footer: {
                     HStack(spacing: 6) {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .foregroundStyle(.tint)
-                        if let existing, existing.usedGrams > 0 {
-                            Text("~\(estimatedTotalShots) shots left (\(existing.remainingGrams.fixed(0))g left at \(inferredUsualDose.fixed())g dose)")
+                        Image(systemName: isFinished ? "checkmark.seal.fill" : "cup.and.saucer.fill")
+                            .foregroundStyle(isFinished ? .green : .accentColor)
+                        if let existing, isFinished {
+                            Text("Bag marked done (\(existing.usedGrams.fixed(0))g logged of \(bagWeightGrams.fixed(0))g)")
+                        } else if let existing, existing.usedGrams > 0 {
+                            Text("~\(estimatedTotalShots) doses left (\(max(0, bagWeightGrams - existing.usedGrams).fixed(0))g left at \(inferredUsualDose.fixed())g dose)")
                         } else {
-                            Text("~\(estimatedTotalShots) shots in bag (based on \(inferredUsualDose.fixed())g usual dose)")
+                            Text("~\(estimatedTotalShots) doses in bag (based on \(inferredUsualDose.fixed())g usual dose)")
                         }
                     }
                     .font(.footnote.weight(.medium))
@@ -173,7 +192,7 @@ struct BeanEditorSheet: View {
                 } footer: {
                     HStack {
                         Text("Effective rest:")
-                        RestBadge(days: previewRestDays, isFrozen: isFrozen, compact: true)
+                        RestBadge(days: previewRestDays, isFrozen: isFrozen, isFinished: isFinished, compact: true)
                     }
                     .padding(.top, 4)
                 }
@@ -275,6 +294,7 @@ struct BeanEditorSheet: View {
             variety = template.variety
             process = template.process
             bagWeightGrams = template.bagWeightGrams
+            markPreviousFinished = true
         }
     }
 
@@ -297,7 +317,17 @@ struct BeanEditorSheet: View {
             } else if existing.isFrozen {
                 existing.thaw()
             }
+            if isFinished {
+                existing.markFinished()
+            } else if existing.isFinished {
+                existing.reopen()
+            }
         } else {
+            if markPreviousFinished {
+                for oldBag in matchingBags where !oldBag.isFinished {
+                    oldBag.markFinished()
+                }
+            }
             let nextBagNumber = matchingBags.count + 1
             let bean = CoffeeBean(
                 name: trimmedName,
