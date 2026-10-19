@@ -166,7 +166,7 @@ struct BeanEditorSheet: View {
                 } footer: {
                     HStack(spacing: 6) {
                         Image(systemName: isFinished ? "checkmark.seal.fill" : "cup.and.saucer.fill")
-                            .foregroundStyle(isFinished ? .green : .accentColor)
+                            .foregroundStyle(isFinished ? Color.green : Color.accentColor)
                         if let existing, isFinished {
                             Text("Bag marked done (\(existing.usedGrams.fixed(0))g logged of \(bagWeightGrams.fixed(0))g)")
                         } else if let existing, existing.usedGrams > 0 {

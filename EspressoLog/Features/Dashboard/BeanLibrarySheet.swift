@@ -84,7 +84,7 @@ struct BeanLibrarySheet: View {
                     HStack(spacing: 6) {
                         Text(bean.name)
                             .font(.headline)
-                            .foregroundStyle(bean.isFinished ? .secondary : .primary)
+                            .foregroundStyle(bean.isFinished ? Color.secondary : Color.primary)
                         if bean.bagNumber > 1 {
                             Text("Bag #\(bean.bagNumber)")
                                 .font(.caption2.weight(.bold))
@@ -133,7 +133,7 @@ struct BeanLibrarySheet: View {
             } label: {
                 Image(systemName: bean.isFinished ? "arrow.uturn.backward.circle" : "checkmark.circle")
                     .font(.title3)
-                    .foregroundStyle(bean.isFinished ? .secondary : .green)
+                    .foregroundStyle(bean.isFinished ? Color.secondary : Color.green)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(bean.isFinished ? "Reopen \(bean.name)" : "Mark \(bean.name) as done")
