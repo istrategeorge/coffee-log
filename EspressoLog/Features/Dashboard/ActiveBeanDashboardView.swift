@@ -84,7 +84,7 @@ struct ActiveBeanDashboardView: View {
                     emptyState
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .paperBackground()
             .navigationTitle("Dial-In")
             .toolbar { toolbarContent }
             .safeAreaInset(edge: .bottom) {
@@ -227,7 +227,7 @@ struct ActiveBeanDashboardView: View {
         let beanShots = bean.shotsNewestFirst
         let fallbackDose = preferredTemplateShot(for: bean)?.dose ?? 20.0
         return ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 ActiveBeanCard(
                     bean: bean,
                     fallbackDose: fallbackDose,
@@ -238,12 +238,6 @@ struct ActiveBeanDashboardView: View {
                     onEdit: { activeSheet = .editBean(bean) }
                 )
 
-                if let equipment = activeEquipment {
-                    EquipmentStrip(equipment: equipment) {
-                        activeSheet = .equipment(equipment)
-                    }
-                }
-
                 if let lastShot = beanShots.first ?? preferredTemplateShot(for: bean) {
                     LastRecipeCard(
                         shot: lastShot,
@@ -252,8 +246,16 @@ struct ActiveBeanDashboardView: View {
                 }
 
                 recentShotsSection(for: bean, shots: beanShots)
+
+                if let equipment = activeEquipment {
+                    EquipmentStrip(equipment: equipment) {
+                        activeSheet = .equipment(equipment)
+                    }
+                }
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
     }
 
@@ -267,20 +269,21 @@ struct ActiveBeanDashboardView: View {
                     NavigationLink {
                         ShotHistoryListView(bean: bean)
                     } label: {
-                        Text("Full Log & Search")
-                            .font(.caption.weight(.semibold))
+                        Text("See All")
+                            .font(.subheadline.weight(.semibold))
                     }
                 }
             }
+            .padding(.horizontal, 4)
 
             if shots.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "cup.and.saucer")
                         .font(.title2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.inkSecondary)
                     Text("No pulls logged for this bag yet.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.inkSecondary)
                     if preferredTemplateShot(for: bean) != nil {
                         Text("Your next pull will pre-fill from your previous cup.")
                             .font(.caption)
@@ -289,19 +292,19 @@ struct ActiveBeanDashboardView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 28)
-                .cardBackground()
+                .paperCard()
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(shots.prefix(6).enumerated()), id: \.element.persistentModelID) { index, shot in
+                    ForEach(Array(shots.prefix(3).enumerated()), id: \.element.persistentModelID) { index, shot in
                         if index > 0 {
-                            Divider()
+                            Rectangle()
+                                .fill(Palette.track)
+                                .frame(height: 1)
                         }
-                        ShotRowView(shot: shot, number: shots.count - index)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 4)
+                        NotebookPreviewRow(shot: shot, number: shots.count - index)
                     }
                 }
-                .cardBackground()
+                .paperCard()
             }
         }
     }
@@ -329,60 +332,65 @@ struct ActiveBeanDashboardView: View {
     private func logShotBar(for bean: CoffeeBean) -> some View {
         let espTemplate = preferredTemplateShot(for: bean, method: .espresso)
         let poTemplate = preferredTemplateShot(for: bean, method: .pourOver)
-        return HStack(spacing: 10) {
-            Button {
+        return HStack(spacing: 12) {
+            logTile(
+                "Log Espresso",
+                symbol: BrewMethod.espresso.symbol,
+                detail: espTemplate.map { "\($0.dose.fixed())g · G \($0.grindSetting.fixed()) · \(ShotFormatter.ratio($0.ratio))" },
+                kind: .prominent
+            ) {
                 activeSheet = .logShot(bean, .espresso)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: BrewMethod.espresso.symbol)
-                        .font(.subheadline.weight(.semibold))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Log Espresso")
-                            .font(.subheadline.weight(.bold))
-                        if let espTemplate {
-                            Text("\(espTemplate.dose.fixed())g @ G \(espTemplate.grindSetting.fixed())")
-                                .font(.caption2.monospacedDigit())
-                                .opacity(0.85)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
 
-            Button {
+            logTile(
+                "Pour Over",
+                symbol: BrewMethod.pourOver.symbol,
+                detail: poTemplate.map { "\($0.dose.fixed())g · G \($0.grindSetting.fixed())" } ?? "15g · 1:16.7",
+                kind: .card
+            ) {
                 activeSheet = .logShot(bean, .pourOver)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: BrewMethod.pourOver.symbol)
-                        .font(.subheadline.weight(.semibold))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Pour Over")
-                            .font(.subheadline.weight(.bold))
-                        if let poTemplate {
-                            Text("\(poTemplate.dose.fixed())g @ G \(poTemplate.grindSetting.fixed())")
-                                .font(.caption2.monospacedDigit())
-                                .opacity(0.85)
-                        } else {
-                            Text("15g · 1:16.7")
-                                .font(.caption2.monospacedDigit())
-                                .opacity(0.85)
-                        }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(Palette.paper)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Palette.rule)
+                .frame(height: 1)
+        }
+    }
+
+    private func logTile(
+        _ title: String,
+        symbol: String,
+        detail: String?,
+        kind: PaperButtonStyle.Kind,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.title3.weight(.semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                    if let detail {
+                        Text(detail)
+                            .font(.mono(.caption2))
+                            .opacity(0.8)
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.teal)
-            .buttonBorderShape(.capsule)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 60)
         }
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .buttonStyle(PaperButtonStyle(kind: kind, cornerRadius: 18))
     }
 
     private func toggleStorage(for bean: CoffeeBean) {
@@ -410,7 +418,7 @@ struct ActiveBeanDashboardView: View {
 
 // MARK: - Subviews
 
-/// Active Bean Card with live `TimelineView` rest badge, bag weight & shots remaining meter, and Room Temp / Freezer state pill.
+/// Active Bean Card: rest-day ring, storage state, bag-weight meter, and bag actions (freeze, done, new bag).
 private struct ActiveBeanCard: View {
     let bean: CoffeeBean
     let fallbackDose: Double
@@ -426,186 +434,168 @@ private struct ActiveBeanCard: View {
             let dose = bean.usualDose(fallback: fallbackDose)
             let shotsLeft = bean.estimatedShotsRemaining(fallbackDose: fallbackDose)
 
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(bean.roaster.uppercased())
-                                .font(.caption.weight(.bold))
-                                .tracking(1.0)
-                                .foregroundStyle(.secondary)
-                            if bean.bagNumber > 1 {
-                                Text("BAG #\(bean.bagNumber)")
-                                    .font(.caption2.weight(.bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .foregroundStyle(.tint)
-                                    .background(Color.accentColor.opacity(0.14), in: Capsule())
-                            }
-                        }
-                        Text(bean.name)
-                            .font(.title2.weight(.bold))
-                        HStack(spacing: 6) {
-                            if !bean.variety.isEmpty {
-                                Text(bean.variety)
-                            }
-                            if !bean.variety.isEmpty, !bean.process.isEmpty {
-                                Text("·")
-                            }
-                            if !bean.process.isEmpty {
-                                Text(bean.process)
-                            }
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 18) {
+                header
+
+                HStack(spacing: 18) {
+                    RestRing(days: days, isFrozen: bean.isFrozen, isFinished: bean.isFinished)
+                    VStack(alignment: .leading, spacing: 10) {
+                        statusPill
+                        Text("Roasted \(bean.roastDate, format: .dateTime.day().month(.abbreviated))")
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
-                    Spacer()
-                    RestBadge(days: days, isFrozen: bean.isFrozen, isFinished: bean.isFinished)
+                    Spacer(minLength: 0)
                 }
 
-                // Bag Weight & Remaining Shots Meter
                 if bean.isFinished {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(.green)
-                            Text("Bag Finished")
-                                .font(.caption.weight(.bold))
-                            Text("· \(bean.usedGrams.fixed(0))g logged of \(bean.bagWeightGrams.fixed(0))g\(bean.untrackedGrams > 0 ? " (\(bean.untrackedGrams.fixed(0))g untracked)" : "")")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer()
-                        }
-
-                        HStack(spacing: 8) {
-                            Button(action: onToggleFinished) {
-                                Label("Reopen", systemImage: "arrow.uturn.backward")
-                                    .font(.caption2.weight(.semibold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color(.tertiarySystemFill), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-
-                            Button(action: onRebuy) {
-                                Label("Re-buy Bag", systemImage: "shippingbox.and.arrow.backward")
-                                    .font(.caption2.weight(.semibold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .foregroundStyle(.tint)
-                                    .background(Color.accentColor.opacity(0.14), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-
-                            Button(action: onNewBean) {
-                                Label("New Coffee", systemImage: "plus")
-                                    .font(.caption2.weight(.semibold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color(.tertiarySystemFill), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(10)
-                    .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    Text("\(bean.usedGrams.fixed(0))g logged of \(bean.bagWeightGrams.fixed(0))g\(bean.untrackedGrams > 0 ? " · \(bean.untrackedGrams.fixed(0))g untracked" : "")")
+                        .font(.mono(.footnote))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Label {
-                                Text("~\(shotsLeft) \(shotsLeft == 1 ? "dose" : "doses") left")
-                                    .font(.caption.weight(.bold).monospacedDigit())
-                            } icon: {
-                                Image(systemName: "scalemass.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(shotsLeft <= 2 ? Color.orange : Color.accentColor)
-                            }
-                            Text("(\(bean.remainingGrams.fixed(0))g / \(bean.bagWeightGrams.fixed(0))g · @\(dose.fixed())g)")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                            Spacer()
-                            Button(action: onToggleFinished) {
-                                Label("Bag Done", systemImage: "checkmark.circle")
-                                    .font(.caption2.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .foregroundStyle(.secondary)
-                                    .background(Color(.tertiarySystemFill), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Mark coffee bag as done")
-
-                            Button(action: onRebuy) {
-                                Label("New Bag", systemImage: "plus.square.on.square")
-                                    .font(.caption2.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color(.tertiarySystemFill), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        ProgressView(value: bean.remainingFraction)
-                            .tint(shotsLeft <= 2 ? .orange : .accentColor)
-                    }
-                    .padding(10)
-                    .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    bagMeter(shotsLeft: shotsLeft, dose: dose)
                 }
 
-                Divider()
-
-                HStack(spacing: 10) {
-                    storagePill
-                    Spacer()
-                    Text("Roasted \(bean.roastDate, format: .dateTime.day().month(.abbreviated))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button(action: onEdit) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Edit bean")
-                }
+                actions
             }
-            .padding()
-            .cardBackground()
+            .padding(20)
+            .paperCard(cornerRadius: 24)
             .sensoryFeedback(.selection, trigger: bean.isFrozen)
             .sensoryFeedback(.success, trigger: bean.isFinished)
         }
     }
 
-    private var storagePill: some View {
-        Button(action: onToggleStorage) {
-            HStack(spacing: 6) {
-                Image(systemName: bean.isFrozen ? "snowflake" : "thermometer.medium")
-                    .contentTransition(.symbolEffect(.replace))
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(bean.isFrozen ? "In Freezer" : "Room Temp")
-                        .font(.caption.weight(.semibold))
-                    if bean.isFrozen, let freezeDate = bean.freezeDate {
-                        Text("Paused \(freezeDate, format: .dateTime.day().month(.abbreviated))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Tap to freeze")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+    private var overline: String {
+        var parts: [String] = []
+        if !bean.roaster.isEmpty { parts.append(bean.roaster.uppercased()) }
+        if bean.bagNumber > 1 { parts.append("BAG #\(bean.bagNumber)") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var originLine: String {
+        [bean.variety, bean.process].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                if !overline.isEmpty {
+                    Text(overline)
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.0)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Text(bean.name)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Palette.ink)
+                if !originLine.isEmpty {
+                    Text(originLine)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .foregroundStyle(bean.isFrozen ? Color.cyan : Color.orange)
-            .background((bean.isFrozen ? Color.cyan : Color.orange).opacity(0.14), in: Capsule())
+            Spacer(minLength: 0)
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(PaperButtonStyle(kind: .inset, cornerRadius: 22))
+            .accessibilityLabel("Edit bean")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(bean.isFrozen ? "Stored in freezer, rest paused. Tap to thaw." : "At room temperature. Tap to freeze.")
+    }
+
+    private var statusPill: some View {
+        let tint: Color = if bean.isFinished {
+            Palette.inkSecondary
+        } else if bean.isFrozen {
+            Palette.frost
+        } else {
+            Palette.sweet
+        }
+        return HStack(spacing: 6) {
+            if bean.isFinished {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.caption.weight(.bold))
+                Text("Bag finished")
+            } else if bean.isFrozen {
+                Image(systemName: "snowflake")
+                    .font(.caption.weight(.bold))
+                if let freezeDate = bean.freezeDate {
+                    Text("Frozen \(freezeDate, format: .dateTime.day().month(.abbreviated))")
+                } else {
+                    Text("In freezer")
+                }
+            } else {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 7, weight: .bold))
+                    .symbolEffect(.pulse, options: .repeating)
+                Text("Resting · room temp")
+            }
+        }
+        .font(.footnote.weight(.semibold))
+        .lineLimit(1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .foregroundStyle(tint)
+        .background(tint.opacity(0.14), in: Capsule())
+        .accessibilityElement(children: .combine)
+    }
+
+    private func bagMeter(shotsLeft: Int, dose: Double) -> some View {
+        let isLow = shotsLeft <= 2
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text("\(bean.remainingGrams.fixed(0))g")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Palette.ink)
+                    Text(" / \(bean.bagWeightGrams.fixed(0))g")
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .font(.mono(.subheadline))
+                Spacer()
+                Text("~\(shotsLeft) \(shotsLeft == 1 ? "dose" : "doses") left @ \(dose.fixed())g")
+                    .font(.footnote.weight(isLow ? .semibold : .regular))
+                    .foregroundStyle(isLow ? Palette.sour : Palette.inkSecondary)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            MeterBar(fraction: bean.remainingFraction, tint: isLow ? Palette.sour : Palette.ink)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        HStack(spacing: 8) {
+            if bean.isFinished {
+                actionButton("Reopen", systemImage: "arrow.uturn.backward", action: onToggleFinished)
+                actionButton("Re-buy", systemImage: "shippingbox.and.arrow.backward", action: onRebuy)
+                actionButton("New Coffee", systemImage: "plus", action: onNewBean)
+            } else {
+                actionButton(bean.isFrozen ? "Thaw" : "Freeze", systemImage: bean.isFrozen ? "sun.max" : "snowflake", action: onToggleStorage)
+                    .accessibilityLabel(bean.isFrozen ? "Stored in freezer, rest paused. Thaw." : "At room temperature. Freeze.")
+                actionButton("Bag Done", systemImage: "checkmark", action: onToggleFinished)
+                    .accessibilityLabel("Mark coffee bag as done")
+                actionButton("New Bag", systemImage: "plus", action: onRebuy)
+            }
+        }
+    }
+
+    private func actionButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.titleAndIcon)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, 6)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(PaperButtonStyle(kind: .inset))
     }
 }
 
@@ -615,101 +605,186 @@ private struct EquipmentStrip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 Image(systemName: "espressomachine")
+                    .font(.title3)
                     .foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(equipment.machineName)
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
                     Text("\(equipment.summary) · \(equipment.defaultDripper)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.mono(.caption))
+                        .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Palette.inkSecondary)
             }
-            .padding(12)
-            .cardBackground(cornerRadius: 14)
+            .padding(14)
+            .paperCard(cornerRadius: 18)
         }
         .buttonStyle(.plain)
     }
 }
 
-/// Quick-glance summary of the last brew + its "Next tweak" callout.
+/// "Up next": the last brew's recipe and the tweak to try on the next pull.
 private struct LastRecipeCard: View {
     let shot: ShotLog
     var isCarryOver: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                SectionLabel(isCarryOver ? "Previous Bag Recipe · R\(shot.restDaysAtBrew)" : "Last Brew · R\(shot.restDaysAtBrew)")
-                BrewMethodBadge(method: shot.brewMethod, dripper: shot.dripper)
-                Spacer()
-                BalanceGlyph(balance: shot.tasteBalance)
-            }
+            SectionLabel("Up Next")
+                .padding(.horizontal, 4)
 
-            if shot.brewMethod == .pourOver {
-                HStack(spacing: 0) {
-                    metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
-                    Divider().frame(height: 28)
-                    metric("Water", value: "\(shot.dose.fixed()) → \(shot.yield.fixed(0))g", sub: ShotFormatter.ratio(shot.ratio, method: .pourOver))
-                    Divider().frame(height: 28)
-                    metric("Drawdown", value: ShotFormatter.drawdown(shot.totalTime), sub: ShotFormatter.bloom(water: shot.bloomWater, pause: shot.preBrewPause))
-                    Divider().frame(height: 28)
-                    metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: ShotFormatter.pours(count: shot.pourCount, agitation: shot.agitation))
-                }
-            } else {
-                HStack(spacing: 0) {
-                    metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
-                    Divider().frame(height: 28)
-                    metric("Ratio", value: "\(shot.dose.fixed()) → \(shot.yield.fixed())g", sub: ShotFormatter.ratio(shot.ratio))
-                    Divider().frame(height: 28)
-                    metric("Time", value: "\(shot.totalTime.fixed())s", sub: ShotFormatter.preBrew(pulse: shot.preBrewPulse, pause: shot.preBrewPause))
-                    Divider().frame(height: 28)
-                    metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: "FP \(shot.fullPressureTime.fixed())s")
-                }
-            }
-
-            if let tweak = shot.actionableNextTweak, !tweak.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.turn.down.right")
-                        .foregroundStyle(.tint)
-                    Text("Next:")
-                        .foregroundStyle(.secondary)
-                    Text(tweak)
-                        .fontWeight(.semibold)
+                    Text(isCarryOver ? "Previous bag · Day \(shot.restDaysAtBrew)" : "Last brew · Day \(shot.restDaysAtBrew)")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    BrewMethodBadge(method: shot.brewMethod, dripper: shot.dripper)
+                    Spacer(minLength: 4)
+                    BalanceChip(balance: shot.tasteBalance)
                 }
-                .font(.caption)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                metricsWell
+
+                if let tweak = shot.actionableNextTweak, !tweak.isEmpty {
+                    Rectangle()
+                        .fill(Palette.rule)
+                        .frame(height: 1)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: "arrow.right")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.tint)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("NEXT TWEAK")
+                                .font(.caption2.weight(.bold))
+                                .tracking(1.0)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text(tweak)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(16)
+            .paperCard()
+        }
+    }
+
+    @ViewBuilder
+    private var metricsWell: some View {
+        HStack(spacing: 0) {
+            if shot.brewMethod == .pourOver {
+                metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
+                separator
+                metric("Water", value: "\(shot.dose.fixed()) → \(shot.yield.fixed(0))g", sub: ShotFormatter.ratio(shot.ratio, method: .pourOver))
+                separator
+                metric("Drawdown", value: ShotFormatter.drawdown(shot.totalTime), sub: ShotFormatter.bloom(water: shot.bloomWater, pause: shot.preBrewPause))
+                separator
+                metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: ShotFormatter.pours(count: shot.pourCount, agitation: shot.agitation))
+            } else {
+                metric("Grind", value: shot.grindSetting.fixed(), sub: shot.grinderRPM.map { "@\($0)" } ?? shot.feedMethod.shortLabel)
+                separator
+                metric("Ratio", value: "\(shot.dose.fixed()) → \(shot.yield.fixed())g", sub: ShotFormatter.ratio(shot.ratio))
+                separator
+                metric("Time", value: "\(shot.totalTime.fixed())s", sub: ShotFormatter.preBrew(pulse: shot.preBrewPulse, pause: shot.preBrewPause))
+                separator
+                metric("Temp", value: ShotFormatter.temperature(shot.brewTemperature), sub: "FP \(shot.fullPressureTime.fixed())s")
             }
         }
-        .padding()
-        .cardBackground()
+        .padding(.vertical, 10)
+        .background(Palette.inset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var separator: some View {
+        Rectangle()
+            .fill(Palette.rule)
+            .frame(width: 1, height: 32)
     }
 
     private func metric(_ label: String, value: String, sub: String) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 3) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.bold))
+                .tracking(0.6)
+                .foregroundStyle(Palette.inkSecondary)
             Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .font(.mono(.subheadline, weight: .semibold))
+                .foregroundStyle(Palette.ink)
             Text(sub)
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .font(.mono(.caption2))
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Compact notebook line for the home screen: pull number, recipe, date · rest · grind, tasting notes, balance.
+private struct NotebookPreviewRow: View {
+    let shot: ShotLog
+    let number: Int
+
+    private var notes: String {
+        shot.flavorNotes.joined(separator: " · ")
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number)")
+                .font(.mono(.body, weight: .semibold))
+                .foregroundStyle(.tint)
+                .frame(minWidth: 24, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if shot.brewMethod == .pourOver {
+                        BrewMethodBadge(method: .pourOver, dripper: shot.dripper)
+                    }
+                    Text(ShotFormatter.headline(dose: shot.dose, yield: shot.yield, time: shot.totalTime, method: shot.brewMethod))
+                        .font(.mono(.subheadline, weight: .medium))
+                        .foregroundStyle(Palette.ink)
+                }
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+
+                Text("\(shot.timestamp.formatted(.dateTime.day().month(.abbreviated))) · R\(shot.restDaysAtBrew) · \(ShotFormatter.grind(shot.grindSetting, zeroOffset: shot.grinderZeroOffset, rpm: shot.grinderRPM))")
+                    .font(.mono(.caption))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                if shot.flowQuality.isIssue || !notes.isEmpty {
+                    HStack(spacing: 6) {
+                        FlowBadge(flow: shot.flowQuality, method: shot.brewMethod)
+                        if !notes.isEmpty {
+                            Text(notes)
+                                .font(.footnote)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(2)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+
+            Spacer(minLength: 4)
+            BalanceChip(balance: shot.tasteBalance)
+                .fixedSize()
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .accessibilityElement(children: .combine)
     }
 }
 
