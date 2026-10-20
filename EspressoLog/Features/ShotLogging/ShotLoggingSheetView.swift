@@ -51,14 +51,16 @@ struct ShotLoggingSheetView: View {
                     flavorSection
                     tweakSection
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
                 .animation(.snappy, value: model.brewMethod)
                 .animation(.snappy, value: model.insights)
             }
             .scrollDismissesKeyboard(.interactively)
-            .background(Color(.systemGroupedBackground))
+            .paperBackground()
             .safeAreaInset(edge: .bottom, spacing: 0) { keypad }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Palette.paper, for: .navigationBar)
             .toolbar { toolbarContent }
             .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: model.keyPressCount)
             .sensoryFeedback(.success, trigger: didSave)
@@ -68,6 +70,7 @@ struct ShotLoggingSheetView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationBackground(Palette.paper)
     }
 
     // MARK: Toolbar
@@ -76,20 +79,24 @@ struct ShotLoggingSheetView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             Button("Cancel") { dismiss() }
+                .foregroundStyle(Palette.ink)
         }
         ToolbarItem(placement: .principal) {
-            VStack(spacing: 0) {
+            VStack(spacing: 1) {
                 Text(model.bean.name)
                     .font(.headline)
+                    .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text("Rest Day \(model.restDays)\(model.bean.isFrozen ? " · frozen" : "") · \(model.brewMethod.label)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.inkSecondary)
             }
         }
         ToolbarItem(placement: .confirmationAction) {
             Button("Save", action: save)
-                .fontWeight(.semibold)
+                .fontWeight(.bold)
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
                 .disabled(!model.canSave)
         }
     }
@@ -97,10 +104,9 @@ struct ShotLoggingSheetView: View {
     // MARK: Sections
 
     private var brewMethodSwitcher: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(BrewMethod.allCases) { method in
                 let isSelected = model.brewMethod == method
-                let activeTint: Color = method == .pourOver ? .teal : .accentColor
                 Button {
                     focusedText = nil
                     withAnimation(.snappy) {
@@ -110,41 +116,46 @@ struct ShotLoggingSheetView: View {
                     HStack(spacing: 8) {
                         Image(systemName: method.symbol)
                             .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(isSelected ? method.tint : Palette.inkSecondary)
                         Text(method.label)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.subheadline.weight(isSelected ? .bold : .semibold))
+                            .foregroundStyle(isSelected ? Palette.ink : Palette.inkSecondary)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(isSelected ? activeTint : Color(.secondarySystemGroupedBackground))
-                    )
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Palette.card)
+                                .shadow(color: .black.opacity(0.12), radius: 1.5, y: 1)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
         .padding(4)
-        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Palette.control, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .sensoryFeedback(.selection, trigger: model.brewMethod)
     }
 
     @ViewBuilder
     private var previousTweakBanner: some View {
         if let tweak = model.previousTweak, !tweak.isEmpty {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.turn.down.right")
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "arrow.right")
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.tint)
-                Text("Last \(model.brewMethod.shortLabel):")
-                    .foregroundStyle(.secondary)
-                Text(tweak)
-                    .fontWeight(.semibold)
+                (Text("Last \(model.brewMethod.label.lowercased()) tweak: ").fontWeight(.bold)
+                    + Text(tweak))
+                    .foregroundStyle(Palette.ink)
                 Spacer(minLength: 0)
             }
             .font(.subheadline)
-            .padding(12)
-            .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -153,8 +164,8 @@ struct ShotLoggingSheetView: View {
             ? ShotFormatter.drawdown(model.totalTime)
             : "FP \(model.fullPressureTime.fixed())s"
 
-        return VStack(spacing: 8) {
-            HStack(spacing: 8) {
+        return VStack(spacing: 10) {
+            HStack(spacing: 10) {
                 tile(.dose, caption: "-\(model.dose.fixed())g bag")
                 tile(.yield, caption: ShotFormatter.ratio(model.ratio, method: model.brewMethod))
                 tile(.time, caption: timeCaption)
@@ -188,18 +199,18 @@ struct ShotLoggingSheetView: View {
 
     private var pourOverSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     SectionLabel("Dripper")
                     Spacer()
                     Text(model.dripper)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.teal)
+                        .foregroundStyle(Palette.pourOver)
                 }
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         ForEach(ShotLoggingViewModel.dripperPresets, id: \.self) { preset in
-                            TagChip(title: preset, isSelected: model.dripper == preset, tint: .teal) {
+                            TagChip(title: preset, isSelected: model.dripper == preset, tint: Palette.pourOver) {
                                 model.dripper = preset
                             }
                         }
@@ -209,15 +220,15 @@ struct ShotLoggingSheetView: View {
                 .scrollIndicators(.hidden)
             }
 
-            Divider()
+            rule
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     SectionLabel("Pour Pulses (incl. Bloom)")
                     Spacer()
                     Text(model.pourCount == 1 ? "Single Continuous Pour" : "\(model.pourCount) Pours")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 HStack(spacing: 8) {
                     ForEach(1...5, id: \.self) { count in
@@ -226,28 +237,20 @@ struct ShotLoggingSheetView: View {
                             withAnimation(.snappy) { model.pourCount = count }
                         } label: {
                             Text("\(count)p")
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .foregroundStyle(isSelected ? Color.teal : Color.primary)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(isSelected ? Color.teal.opacity(0.18) : Color(.tertiarySystemFill))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .strokeBorder(isSelected ? Color.teal : Color.clear, lineWidth: 1)
-                                )
+                                .font(.mono(.subheadline, weight: .semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .optionTile(isSelected: isSelected, tint: Palette.pourOver, cornerRadius: 12)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
                 .sensoryFeedback(.selection, trigger: model.pourCount)
             }
 
-            Divider()
+            rule
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 SectionLabel("Agitation")
                 HStack(spacing: 8) {
                     ForEach(PourAgitation.allCases) { item in
@@ -255,33 +258,32 @@ struct ShotLoggingSheetView: View {
                         Button {
                             withAnimation(.snappy) { model.agitation = item }
                         } label: {
-                            VStack(spacing: 3) {
+                            VStack(spacing: 4) {
                                 Image(systemName: item.symbol)
                                     .font(.subheadline.weight(.semibold))
                                 Text(item.label)
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption.weight(.semibold))
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .foregroundStyle(isSelected ? Color.teal : Color.secondary)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(isSelected ? Color.teal.opacity(0.18) : Color(.tertiarySystemFill))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(isSelected ? Color.teal : Color.clear, lineWidth: 1)
-                            )
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                            .optionTile(isSelected: isSelected, tint: Palette.pourOver, cornerRadius: 12)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
                 .sensoryFeedback(.selection, trigger: model.agitation)
             }
         }
-        .padding()
-        .cardBackground()
+        .padding(16)
+        .paperCard()
+    }
+
+    private var rule: some View {
+        Rectangle()
+            .fill(Palette.rule)
+            .frame(height: 1)
     }
 
     private var feedSection: some View {
@@ -291,9 +293,10 @@ struct ShotLoggingSheetView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(model.feedMethod.label)
                             .font(.headline)
+                            .foregroundStyle(Palette.ink)
                         Text(model.feedMethod.detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 } icon: {
                     Image(systemName: model.feedMethod.symbol)
@@ -308,8 +311,8 @@ struct ShotLoggingSheetView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding()
-        .cardBackground()
+        .padding(16)
+        .paperCard()
         .animation(.snappy, value: model.feedMethod)
         .sensoryFeedback(.selection, trigger: model.feedMethod)
     }
@@ -317,27 +320,24 @@ struct ShotLoggingSheetView: View {
     private var flowSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(model.brewMethod == .pourOver ? "Drawdown & Bed" : "Flow")
+                .padding(.horizontal, 4)
             HStack(spacing: 8) {
                 ForEach(FlowQuality.allCases) { flow in
                     let isSelected = model.flowQuality == flow
                     Button {
                         withAnimation(.snappy) { model.flowQuality = flow }
                     } label: {
-                        VStack(spacing: 4) {
+                        VStack(spacing: 5) {
                             Image(systemName: flow.symbol(for: model.brewMethod))
                                 .font(.headline)
                             Text(flow.label(for: model.brewMethod))
-                                .font(.caption2.weight(.medium))
+                                .font(.caption.weight(isSelected ? .bold : .semibold))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.8)
+                                .minimumScaleFactor(0.7)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(isSelected ? flow.tint : Color.secondary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(isSelected ? flow.tint.opacity(0.15) : Color(.tertiarySystemFill))
-                        )
+                        .padding(.horizontal, 4)
+                        .frame(maxWidth: .infinity, minHeight: 66)
+                        .optionTile(isSelected: isSelected, tint: flow.tint)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -358,6 +358,7 @@ struct ShotLoggingSheetView: View {
                         .foregroundStyle(.tint)
                 }
             }
+            .padding(.horizontal, 4)
             BalanceSegmentedControl(selection: $model.tasteBalance)
         }
     }
@@ -368,6 +369,7 @@ struct ShotLoggingSheetView: View {
         if !insights.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel("Insights")
+                    .padding(.horizontal, 4)
                 ForEach(insights) { insight in
                     InsightCallout(insight: insight)
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
@@ -379,6 +381,7 @@ struct ShotLoggingSheetView: View {
     private var flavorSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Flavor Notes")
+                .padding(.horizontal, 4)
             FlowLayout(spacing: 8) {
                 ForEach(allTags, id: \.self) { tag in
                     TagChip(title: tag, isSelected: model.flavorNotes.contains(tag)) {
@@ -388,7 +391,7 @@ struct ShotLoggingSheetView: View {
             }
             HStack {
                 Image(systemName: "plus.circle")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.inkSecondary)
                 TextField("Add note…", text: $newTag)
                     .focused($focusedText, equals: .tag)
                     .submitLabel(.done)
@@ -397,8 +400,9 @@ struct ShotLoggingSheetView: View {
                         newTag = ""
                     }
             }
-            .padding(10)
-            .cardBackground(cornerRadius: 12)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
+            .paperCard(cornerRadius: 14)
         }
     }
 
@@ -410,11 +414,12 @@ struct ShotLoggingSheetView: View {
     private var tweakSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Next Tweak")
+                .padding(.horizontal, 4)
             TextField("e.g. Go coarser +0.5", text: $model.nextTweak, axis: .vertical)
                 .focused($focusedText, equals: .tweak)
                 .lineLimit(1...3)
-                .padding(12)
-                .cardBackground(cornerRadius: 12)
+                .padding(14)
+                .paperCard(cornerRadius: 14)
 
             let suggestions = model.suggestedTweaks
             if !suggestions.isEmpty {
@@ -426,6 +431,7 @@ struct ShotLoggingSheetView: View {
                             }
                         }
                     }
+                    .padding(.vertical, 2)
                 }
                 .scrollIndicators(.hidden)
             }

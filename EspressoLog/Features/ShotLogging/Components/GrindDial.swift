@@ -19,7 +19,12 @@ struct GrindDial: View {
             HStack(spacing: 8) {
                 SectionLabel("Grind")
                 if isChanged {
-                    Circle().fill(.tint).frame(width: 5, height: 5)
+                    Text("Changed")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .foregroundStyle(.tint)
+                        .background(Palette.accent.opacity(0.12), in: Capsule())
                 }
                 Spacer()
                 zeroOffsetControl
@@ -28,8 +33,8 @@ struct GrindDial: View {
             HStack(spacing: 20) {
                 stepButton(systemImage: "minus", delta: -1)
                 Text(valueText)
-                    .font(.system(size: 44, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                    .font(.system(size: 44, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.tint)
                     .contentTransition(.numericText(value: Double(tenths)))
                     .frame(minWidth: 120)
                     .accessibilityLabel("Grind setting \(valueText)")
@@ -38,8 +43,8 @@ struct GrindDial: View {
 
             ruler
         }
-        .padding()
-        .cardBackground()
+        .padding(16)
+        .paperCard()
         .sensoryFeedback(.selection, trigger: tenths)
         .sensoryFeedback(.selection, trigger: zeroOffset)
         .accessibilityElement(children: .contain)
@@ -56,21 +61,23 @@ struct GrindDial: View {
         HStack(spacing: 6) {
             Text("0-Point Offset")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.inkSecondary)
             HStack(spacing: 2) {
                 Button {
                     zeroOffset = max(-10, zeroOffset - 1)
                 } label: {
                     Image(systemName: "minus")
                         .font(.caption2.weight(.bold))
+                        .foregroundStyle(Palette.ink)
                         .frame(width: 24, height: 24)
-                        .background(Color(.tertiarySystemFill), in: Circle())
+                        .background(Palette.card, in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Lower zero-point offset")
 
                 Text(offsetText)
-                    .font(.caption.weight(.bold).monospacedDigit())
-                    .foregroundStyle(zeroOffset == 0 ? Color.secondary : Color.accentColor)
+                    .font(.mono(.caption, weight: .bold))
+                    .foregroundStyle(zeroOffset == 0 ? Palette.inkSecondary : Palette.accent)
                     .frame(minWidth: 26)
 
                 Button {
@@ -78,15 +85,17 @@ struct GrindDial: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.caption2.weight(.bold))
+                        .foregroundStyle(Palette.ink)
                         .frame(width: 24, height: 24)
-                        .background(Color(.tertiarySystemFill), in: Circle())
+                        .background(Palette.card, in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Raise zero-point offset")
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+        .background(Palette.inset, in: Capsule())
     }
 
     private var ruler: some View {
@@ -133,8 +142,10 @@ struct GrindDial: View {
         Button { step(delta) } label: {
             Image(systemName: systemImage)
                 .font(.title3.weight(.semibold))
+                .foregroundStyle(Palette.ink)
                 .frame(width: 48, height: 48)
-                .background(Color(.tertiarySystemFill), in: Circle())
+                .background(Palette.inset, in: Circle())
+                .overlay(Circle().strokeBorder(Palette.rule, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .buttonRepeatBehavior(.enabled)
@@ -155,12 +166,12 @@ private struct TickMark: View {
         let isHalf = tick % 5 == 0
         VStack(spacing: 3) {
             Rectangle()
-                .fill(isMajor ? Color.primary : Color.secondary.opacity(isHalf ? 0.8 : 0.4))
+                .fill(isMajor ? Palette.ink : Palette.inkSecondary.opacity(isHalf ? 0.8 : 0.45))
                 .frame(width: isMajor ? 2 : 1, height: isMajor ? 26 : (isHalf ? 18 : 12))
                 .frame(height: 26, alignment: .top)
             Text(isMajor ? "\(tick / 10)" : " ")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .font(.mono(.caption2))
+                .foregroundStyle(Palette.inkSecondary)
                 .fixedSize()
         }
     }

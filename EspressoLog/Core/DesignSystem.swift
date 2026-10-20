@@ -29,6 +29,16 @@ enum Palette {
     static let astringent = Color(light: 0x4A3D8C, dark: 0xB2A6F0)
     static let channel = Color(light: 0xB3261E, dark: 0xF2867D)
     static let frost = Color(light: 0x1F6E86, dark: 0x7FCBE0)
+    static let pourOver = Color(light: 0x1F6E6A, dark: 0x7CCFC6)
+}
+
+extension BrewMethod {
+    var tint: Color {
+        switch self {
+        case .espresso: Palette.accent
+        case .pourOver: Palette.pourOver
+        }
+    }
 }
 
 extension Color {
@@ -113,6 +123,16 @@ extension View {
     /// Full-bleed paper screen background (a `ShapeStyle` background ignores safe areas by default).
     func paperBackground() -> some View {
         background(Palette.paper)
+    }
+
+    /// Selectable option tile (flow, agitation, pour count): a quiet card when off,
+    /// a tinted fill with a bold border when on.
+    func optionTile(isSelected: Bool, tint: Color, cornerRadius: CGFloat = 16) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return foregroundStyle(isSelected ? tint : Palette.ink)
+            .background(isSelected ? tint.opacity(0.14) : Palette.card, in: shape)
+            .overlay(shape.strokeBorder(isSelected ? tint : Palette.rule, lineWidth: isSelected ? 2 : 1))
+            .contentShape(shape)
     }
 }
 
@@ -286,7 +306,7 @@ struct BrewMethodBadge: View {
     var dripper: String?
 
     private var tint: Color {
-        method == .pourOver ? .teal : .brown
+        method == .pourOver ? Palette.pourOver : Palette.bitter
     }
 
     var body: some View {
@@ -360,15 +380,16 @@ struct InsightCallout: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(insight.title)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
                 Text(insight.message)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(insight.kind.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(14)
+        .background(insight.kind.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -383,13 +404,13 @@ struct TagChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
                 .lineLimit(1)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .foregroundStyle(isSelected ? tint : Color.primary)
-                .background(Capsule().fill(isSelected ? tint.opacity(0.18) : Color(.tertiarySystemFill)))
-                .overlay(Capsule().strokeBorder(isSelected ? tint : .clear, lineWidth: 1))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .foregroundStyle(isSelected ? tint : Palette.ink)
+                .background(Capsule().fill(isSelected ? tint.opacity(0.16) : Palette.card))
+                .overlay(Capsule().strokeBorder(isSelected ? tint : Palette.rule, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
