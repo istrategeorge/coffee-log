@@ -3,42 +3,37 @@ import SwiftUI
 /// `Sour (−) | Sweet / Balanced (★) | Bitter (+) | Astringent (Ast)`
 struct BalanceSegmentedControl: View {
     @Binding var selection: TasteBalance?
-    @Namespace private var namespace
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             ForEach(TasteBalance.allCases) { balance in
                 let isSelected = selection == balance
+                let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
                 Button {
                     withAnimation(.snappy(duration: 0.25)) { selection = balance }
                 } label: {
-                    VStack(spacing: 2) {
+                    VStack(spacing: 3) {
                         Text(balance.glyph)
-                            .font(.headline)
+                            .font(.mono(balance == .astringentDryChalky ? .subheadline : .title3, weight: .semibold))
+                            .foregroundStyle(isSelected ? Palette.paper : balance.tint)
+                            .frame(height: 24)
                         Text(balance.segmentLabel)
-                            .font(.caption2.weight(.medium))
+                            .font(.caption.weight(isSelected ? .bold : .semibold))
+                            .foregroundStyle(isSelected ? Palette.paper : Palette.ink)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .minimumScaleFactor(0.7)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
-                    .background {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(balance.tint)
-                                .matchedGeometryEffect(id: "selection", in: namespace)
-                        }
-                    }
-                    .contentShape(Rectangle())
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, minHeight: 68)
+                    .background(isSelected ? balance.tint : Palette.card, in: shape)
+                    .overlay(shape.strokeBorder(isSelected ? Color.clear : Palette.rule, lineWidth: 1))
+                    .contentShape(shape)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(balance.label)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
-        .padding(4)
-        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .sensoryFeedback(.selection, trigger: selection)
     }
 }

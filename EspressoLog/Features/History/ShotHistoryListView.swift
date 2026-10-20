@@ -61,9 +61,16 @@ struct ShotHistoryListView: View {
         let shots = visibleShots
 
         List {
+            methodChips
+                .paperRow(top: 4, bottom: 4)
             if let beanFilter, searchText.isEmpty {
                 NotebookHeader(bean: beanFilter, equipment: shots.first?.equipment)
-                    .listRowSeparator(.hidden)
+                    .paperRow()
+                let mapMethod = methodFilter ?? dominantMethod(in: shots)
+                if shots.filter({ $0.brewMethod == mapMethod }).count >= 2 {
+                    DialInMapChart(method: mapMethod, shots: shots, numbers: numbers)
+                        .paperRow()
+                }
             }
             ForEach(shots) { shot in
                 ShotRowView(
@@ -71,6 +78,7 @@ struct ShotHistoryListView: View {
                     number: numbers[shot.persistentModelID],
                     showsBeanName: beanFilter == nil || !searchText.isEmpty
                 )
+                .paperRow()
                 .swipeActions(edge: .trailing) {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         delete(shot)
@@ -79,19 +87,15 @@ struct ShotHistoryListView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .paperBackground()
         .searchable(text: $searchText, prompt: "Search coffee, roaster, method, notes, gear…")
         .navigationTitle(beanFilter?.name ?? "All Brews")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Palette.paper, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Brew Method", selection: $methodFilter) {
-                        Text("All Methods").tag(BrewMethod?.none)
-                        ForEach(BrewMethod.allCases) { method in
-                            Label(method.label, systemImage: method.symbol).tag(Optional(method))
-                        }
-                    }
-                    Divider()
                     Picker("Bean", selection: $beanFilter) {
                         Text("All Bags").tag(CoffeeBean?.none)
                         ForEach(beans) { bean in
@@ -100,7 +104,7 @@ struct ShotHistoryListView: View {
                         }
                     }
                 } label: {
-                    Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                    Label("Filter Bags", systemImage: beanFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                 }
             }
         }
@@ -119,11 +123,45 @@ struct ShotHistoryListView: View {
         }
     }
 
+    private var methodChips: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                TagChip(title: "All", isSelected: methodFilter == nil, tint: Palette.ink) {
+                    withAnimation(.snappy) { methodFilter = nil }
+                }
+                ForEach(BrewMethod.allCases) { method in
+                    TagChip(title: method.label, isSelected: methodFilter == method, tint: method.tint) {
+                        withAnimation(.snappy) { methodFilter = method }
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+        .sensoryFeedback(.selection, trigger: methodFilter)
+    }
+
+    /// Ratio and time scales differ too much to share one map, so with no method filter
+    /// the map shows whichever method has more pulls.
+    private func dominantMethod(in shots: [ShotLog]) -> BrewMethod {
+        let pourOvers = shots.filter { $0.brewMethod == .pourOver }.count
+        return pourOvers > shots.count - pourOvers ? .pourOver : .espresso
+    }
+
     private func delete(_ shot: ShotLog) {
         withAnimation {
             context.delete(shot)
             try? context.save()
         }
+    }
+}
+
+private extension View {
+    /// Card-on-paper list row: no separator or cell background, inset like the rest of the app.
+    func paperRow(top: CGFloat = 6, bottom: CGFloat = 6) -> some View {
+        listRowInsets(EdgeInsets(top: top, leading: 16, bottom: bottom, trailing: 16))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 }
 

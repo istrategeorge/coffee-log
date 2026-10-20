@@ -1,14 +1,83 @@
 import SwiftUI
 
+// MARK: - Palette ("ink & paper")
+
+/// Ink-and-paper palette: warm paper ground, near-black ink, and ink-blue for anything
+/// you wrote yourself (tweaks, pull numbers) — like the blue pen in the paper log.
+/// Every token adapts to dark mode.
+enum Palette {
+    // Surfaces
+    static let paper = Color(light: 0xF4F0E8, dark: 0x15130F)
+    static let card = Color(light: 0xFFFCF7, dark: 0x211E1A)
+    /// Wells and secondary buttons inside a card.
+    static let inset = Color(light: 0xF4F0E8, dark: 0x2A2621)
+    /// Round toolbar-style icon buttons.
+    static let control = Color(light: 0xE9E3D8, dark: 0x2E2A24)
+    static let rule = Color(light: 0xE4DDD1, dark: 0x36312A)
+    static let track = Color(light: 0xECE6DB, dark: 0x332E28)
+
+    // Ink
+    static let ink = Color(light: 0x1C1A17, dark: 0xF2EDE4)
+    static let inkSecondary = Color(light: 0x6A6359, dark: 0xA9A196)
+    static let accent = Color(light: 0x2443A6, dark: 0x8FA8F2)
+    static let onAccent = Color(light: 0xFFFFFF, dark: 0x0F1A3D)
+
+    // Semantic
+    static let sour = Color(light: 0x8A450C, dark: 0xF0A766)
+    static let sweet = Color(light: 0x2B6338, dark: 0x82C793)
+    static let bitter = Color(light: 0x5E3A22, dark: 0xD4A27F)
+    static let astringent = Color(light: 0x4A3D8C, dark: 0xB2A6F0)
+    static let channel = Color(light: 0xB3261E, dark: 0xF2867D)
+    static let frost = Color(light: 0x1F6E86, dark: 0x7FCBE0)
+    static let pourOver = Color(light: 0x1F6E6A, dark: 0x7CCFC6)
+}
+
+extension BrewMethod {
+    var tint: Color {
+        switch self {
+        case .espresso: Palette.accent
+        case .pourOver: Palette.pourOver
+        }
+    }
+}
+
+extension Color {
+    /// Light/dark pair from `0xRRGGBB` literals.
+    init(light: UInt32, dark: UInt32) {
+        self.init(uiColor: UIColor { traits in
+            UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
+        })
+    }
+}
+
+private extension UIColor {
+    convenience init(rgb: UInt32) {
+        self.init(
+            red: CGFloat((rgb >> 16) & 0xFF) / 255,
+            green: CGFloat((rgb >> 8) & 0xFF) / 255,
+            blue: CGFloat(rgb & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+
+extension Font {
+    /// Monospaced figures for every measured value (dose, yield, grind, temp), so numbers
+    /// line up like ruled notebook columns. Scales with Dynamic Type.
+    static func mono(_ style: Font.TextStyle = .body, weight: Font.Weight = .regular) -> Font {
+        .system(style, design: .monospaced, weight: weight)
+    }
+}
+
 // MARK: - Semantic tints
 
 extension TasteBalance {
     var tint: Color {
         switch self {
-        case .underExtractedSour: .orange
-        case .balancedSweet: .green
-        case .overExtractedBitter: .brown
-        case .astringentDryChalky: .indigo
+        case .underExtractedSour: Palette.sour
+        case .balancedSweet: Palette.sweet
+        case .overExtractedBitter: Palette.bitter
+        case .astringentDryChalky: Palette.astringent
         }
     }
 }
@@ -16,10 +85,10 @@ extension TasteBalance {
 extension FlowQuality {
     var tint: Color {
         switch self {
-        case .smoothCone: .green
-        case .fastGushing: .orange
-        case .chokedDrip: .blue
-        case .channelingSquirts: .red
+        case .smoothCone: Palette.sweet
+        case .fastGushing: Palette.sour
+        case .chokedDrip: Palette.accent
+        case .channelingSquirts: Palette.channel
         }
     }
 }
@@ -27,9 +96,9 @@ extension FlowQuality {
 extension ExtractionInsight.Kind {
     var tint: Color {
         switch self {
-        case .hint: .blue
-        case .warning: .orange
-        case .positive: .green
+        case .hint: Palette.accent
+        case .warning: Palette.sour
+        case .positive: Palette.sweet
         }
     }
 }
@@ -43,6 +112,28 @@ extension View {
             in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         )
     }
+
+    /// Ink & paper card: warm card fill with a hairline rule.
+    func paperCard(cornerRadius: CGFloat = 22) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return background(Palette.card, in: shape)
+            .overlay(shape.strokeBorder(Palette.rule, lineWidth: 1))
+    }
+
+    /// Full-bleed paper screen background (a `ShapeStyle` background ignores safe areas by default).
+    func paperBackground() -> some View {
+        background(Palette.paper)
+    }
+
+    /// Selectable option tile (flow, agitation, pour count): a quiet card when off,
+    /// a tinted fill with a bold border when on.
+    func optionTile(isSelected: Bool, tint: Color, cornerRadius: CGFloat = 16) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return foregroundStyle(isSelected ? tint : Palette.ink)
+            .background(isSelected ? tint.opacity(0.14) : Palette.card, in: shape)
+            .overlay(shape.strokeBorder(isSelected ? tint : Palette.rule, lineWidth: isSelected ? 2 : 1))
+            .contentShape(shape)
+    }
 }
 
 struct SectionLabel: View {
@@ -51,9 +142,106 @@ struct SectionLabel: View {
 
     var body: some View {
         Text(title.uppercased())
-            .font(.caption.weight(.semibold))
-            .tracking(0.8)
-            .foregroundStyle(.secondary)
+            .font(.caption.weight(.bold))
+            .tracking(1.0)
+            .foregroundStyle(Palette.inkSecondary)
+    }
+}
+
+/// Buttons on paper: `.prominent` is the ink-blue call to action, `.card` a raised tile,
+/// `.inset` a quiet secondary action inside a card.
+struct PaperButtonStyle: ButtonStyle {
+    enum Kind { case prominent, card, inset }
+
+    var kind: Kind = .inset
+    var cornerRadius: CGFloat = 14
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return configuration.label
+            .foregroundStyle(kind == .prominent ? Palette.onAccent : Palette.ink)
+            .background(fill, in: shape)
+            .overlay(shape.strokeBorder(kind == .prominent ? Color.clear : Palette.rule, lineWidth: 1))
+            .contentShape(shape)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+
+    private var fill: Color {
+        switch kind {
+        case .prominent: Palette.accent
+        case .card: Palette.card
+        case .inset: Palette.inset
+        }
+    }
+}
+
+// MARK: - Meters
+
+/// Rest-day ring: fills over `windowDays` and shows the day count in the middle.
+struct RestRing: View {
+    let days: Int
+    var isFrozen = false
+    var isFinished = false
+    /// Days that fill the ring; most specialty roasts are past their peak within a month.
+    var windowDays = 30
+
+    private var tint: Color {
+        if isFinished { return Palette.inkSecondary }
+        return isFrozen ? Palette.frost : Palette.accent
+    }
+
+    private var progress: Double {
+        min(1, max(0, Double(days) / Double(max(1, windowDays))))
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Palette.track, lineWidth: 8)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 2) {
+                Text("\(days)")
+                    .font(.mono(.title, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .contentTransition(.numericText(value: Double(days)))
+                Text(isFinished ? "DONE" : "REST DAY")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.0)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(12)
+        }
+        .frame(width: 104, height: 104)
+        .animation(.snappy, value: days)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rest day \(days)\(isFinished ? ", bag finished" : (isFrozen ? ", paused in freezer" : ""))")
+    }
+}
+
+/// Thin capsule meter, e.g. grams left in the bag.
+struct MeterBar: View {
+    let fraction: Double
+    var tint: Color = Palette.ink
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Palette.track)
+                Capsule()
+                    .fill(tint)
+                    .frame(width: proxy.size.width * min(1, max(0, fraction)))
+            }
+        }
+        .frame(height: 8)
+        .animation(.snappy, value: fraction)
+        .accessibilityHidden(true)
     }
 }
 
@@ -67,8 +255,8 @@ struct RestBadge: View {
     var compact = false
 
     private var tint: Color {
-        if isFinished { return .secondary }
-        return isFrozen ? .cyan : .green
+        if isFinished { return Palette.inkSecondary }
+        return isFrozen ? Palette.frost : Palette.sweet
     }
 
     private var iconName: String {
@@ -118,7 +306,7 @@ struct BrewMethodBadge: View {
     var dripper: String?
 
     private var tint: Color {
-        method == .pourOver ? .teal : .brown
+        method == .pourOver ? Palette.pourOver : Palette.bitter
     }
 
     var body: some View {
@@ -158,8 +346,24 @@ struct BalanceGlyph: View {
             .frame(minWidth: 22)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .foregroundStyle(.white)
-            .background(balance.tint, in: Capsule())
+            .foregroundStyle(balance.tint)
+            .background(balance.tint.opacity(0.16), in: Capsule())
+            .accessibilityLabel(balance.label)
+    }
+}
+
+/// Worded balance pill for roomier layouts: `Sour −` · `Sweet ★` · `Bitter +` · `Astringent Ast`.
+struct BalanceChip: View {
+    let balance: TasteBalance
+
+    var body: some View {
+        Text(balance == .astringentDryChalky ? balance.segmentLabel : "\(balance.segmentLabel) \(balance.glyph)")
+            .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .foregroundStyle(balance.tint)
+            .background(balance.tint.opacity(0.16), in: Capsule())
             .accessibilityLabel(balance.label)
     }
 }
@@ -176,15 +380,16 @@ struct InsightCallout: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(insight.title)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
                 Text(insight.message)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(insight.kind.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(14)
+        .background(insight.kind.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -199,13 +404,13 @@ struct TagChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
                 .lineLimit(1)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .foregroundStyle(isSelected ? tint : Color.primary)
-                .background(Capsule().fill(isSelected ? tint.opacity(0.18) : Color(.tertiarySystemFill)))
-                .overlay(Capsule().strokeBorder(isSelected ? tint : .clear, lineWidth: 1))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .foregroundStyle(isSelected ? tint : Palette.ink)
+                .background(Capsule().fill(isSelected ? tint.opacity(0.16) : Palette.card))
+                .overlay(Capsule().strokeBorder(isSelected ? tint : Palette.rule, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

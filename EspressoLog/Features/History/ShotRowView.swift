@@ -1,102 +1,155 @@
 import SwiftUI
 
-/// A6-notebook-style compact row:
+/// One pull as a notebook card:
 ///
 /// ```
-///  #3  │ 20.0g → 48.5g (27.0s)  1:2.43        ★
-/// 24/09│ G -0.5 @1100 | Slow | PB 3/5 | 94.0°C
-///  R18 │ 💧 Choked  Juicy Peach · Honey
-///      │ ↳ Go finer (-0.7)
+///  #3  Day 18 · 24 Sep                     Sour −
+///  ┌ D → Y      TIME      TEMP   ┐
+///  │ 20.0→48.5  27.0s     94.0°C │
+///  │ GRIND      PB        FLOW   │
+///  └ 0.5@1100   3/5       Choked ┘
+///  Juicy Peach · Honey
+///  → Go finer (-0.7)
 /// ```
 struct ShotRowView: View {
     let shot: ShotLog
     var number: Int?
     var showsBeanName = false
 
+    private struct Metric: Identifiable {
+        let label: String
+        let value: String
+        var sub: String?
+        var tint: Color?
+        var id: String { label }
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            indexColumn
-            Rectangle()
-                .fill(Color(.separator))
-                .frame(width: 1)
-            VStack(alignment: .leading, spacing: 4) {
-                headline
-                Text(shot.notebookLine)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if let equipment = shot.equipment {
-                    Label(
-                        equipment.fullLine(for: shot.brewMethod, dripper: shot.dripper),
-                        systemImage: shot.brewMethod == .pourOver ? "mug" : "espressomachine"
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        VStack(alignment: .leading, spacing: 12) {
+            headline
+            metricsWell
+            if let equipment = shot.equipment {
+                Label(
+                    equipment.fullLine(for: shot.brewMethod, dripper: shot.dripper),
+                    systemImage: shot.brewMethod == .pourOver ? "mug" : "espressomachine"
+                )
+                .font(.mono(.caption2))
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            }
+            notesLine
+            if let tweak = shot.actionableNextTweak, !tweak.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "arrow.right")
+                        .font(.footnote.weight(.bold))
+                    Text(tweak)
+                        .font(.subheadline.weight(.semibold))
                 }
-                notesLine
-                if let tweak = shot.actionableNextTweak, !tweak.isEmpty {
-                    Label(tweak, systemImage: "arrow.turn.down.right")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.tint)
-                        .labelStyle(.titleAndIcon)
-                }
+                .foregroundStyle(.tint)
             }
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.vertical, 6)
+        .padding(16)
+        .paperCard()
         .accessibilityElement(children: .combine)
     }
 
-    private var indexColumn: some View {
-        VStack(alignment: .leading, spacing: 2) {
+    private var headline: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(number.map { "#\($0)" } ?? "•")
-                .font(.subheadline.weight(.bold).monospacedDigit())
-            Text(shot.timestamp, format: .dateTime.day(.twoDigits).month(.twoDigits))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
-            Text("R\(shot.restDaysAtBrew)")
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.mono(.title3, weight: .semibold))
                 .foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Day \(shot.restDaysAtBrew)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    Text("· \(shot.timestamp, format: .dateTime.day().month(.abbreviated))")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    if shot.brewMethod == .pourOver {
+                        BrewMethodBadge(method: .pourOver, dripper: shot.dripper)
+                    }
+                }
+                if showsBeanName, let bean = shot.bean {
+                    Text(bean.name)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            BalanceChip(balance: shot.tasteBalance)
+                .fixedSize()
         }
-        .frame(width: 42, alignment: .leading)
     }
 
-    private var headline: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            BrewMethodBadge(method: shot.brewMethod, dripper: shot.dripper)
-            Text(ShotFormatter.headline(dose: shot.dose, yield: shot.yield, time: shot.totalTime, method: shot.brewMethod))
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(ShotFormatter.ratio(shot.ratio, method: shot.brewMethod))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            BalanceGlyph(balance: shot.tasteBalance)
+    private var metrics: [Metric] {
+        let grindValue = "\(max(0, shot.grindSetting).fixed())\(shot.grinderRPM.map { "@\($0)" } ?? "")"
+        let grindSub: String? = shot.grinderZeroOffset == 0
+            ? nil
+            : "0pt \(shot.grinderZeroOffset > 0 ? "+" : "")\(shot.grinderZeroOffset)"
+        let flowTint: Color? = shot.flowQuality.isIssue ? shot.flowQuality.tint : nil
+
+        switch shot.brewMethod {
+        case .espresso:
+            return [
+                Metric(label: "D → Y", value: "\(shot.dose.fixed())→\(shot.yield.fixed())", sub: ShotFormatter.ratio(shot.ratio)),
+                Metric(label: "Time", value: "\(shot.totalTime.fixed())s", sub: "FP \(shot.fullPressureTime.fixed())s"),
+                Metric(label: "Temp", value: ShotFormatter.temperature(shot.brewTemperature)),
+                Metric(label: "Grind", value: grindValue, sub: grindSub),
+                Metric(label: "PB", value: "\(shot.preBrewPulse.trimmed)/\(shot.preBrewPause.trimmed)", sub: shot.feedMethod.shortLabel),
+                Metric(label: "Flow", value: shot.flowQuality.label(for: .espresso), tint: flowTint),
+            ]
+        case .pourOver:
+            return [
+                Metric(label: "Water", value: "\(shot.dose.fixed()):\(shot.yield.fixed(0))", sub: ShotFormatter.ratio(shot.ratio, method: .pourOver)),
+                Metric(label: "Drawdown", value: ShotFormatter.drawdown(shot.totalTime), sub: "Bloom \(shot.bloomWater.fixed(0))g/\(shot.preBrewPause.fixed(0))s"),
+                Metric(label: "Temp", value: ShotFormatter.temperature(shot.brewTemperature)),
+                Metric(label: "Grind", value: grindValue, sub: grindSub),
+                Metric(label: "Pours", value: "\(shot.pourCount)p", sub: shot.agitation.shortLabel),
+                Metric(label: "Bed", value: shot.flowQuality.label(for: .pourOver), tint: flowTint),
+            ]
         }
+    }
+
+    private var metricsWell: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .topLeading), count: 3),
+            alignment: .leading,
+            spacing: 10
+        ) {
+            ForEach(metrics) { metric in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(metric.label.uppercased())
+                        .font(.caption2.weight(.bold))
+                        .tracking(0.6)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Text(metric.value)
+                        .font(.mono(.subheadline, weight: .medium))
+                        .foregroundStyle(metric.tint ?? Palette.ink)
+                    if let sub = metric.sub {
+                        Text(sub)
+                            .font(.mono(.caption2))
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(12)
+        .background(Palette.inset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     @ViewBuilder
     private var notesLine: some View {
         let notes = shot.flavorNotes.joined(separator: " · ")
-        if shot.flowQuality.isIssue || !notes.isEmpty || showsBeanName {
-            HStack(spacing: 6) {
-                FlowBadge(flow: shot.flowQuality, method: shot.brewMethod)
-                if showsBeanName, let bean = shot.bean {
-                    Text(bean.name)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                }
-                if !notes.isEmpty {
-                    Text(notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
+        if !notes.isEmpty {
+            Text(notes)
+                .font(.subheadline)
+                .foregroundStyle(Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -107,18 +160,27 @@ struct NotebookHeader: View {
     let equipment: EquipmentProfile?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ESPRESSO & POUR OVER LOG")
-                .font(.caption.weight(.bold))
-                .tracking(1.5)
-                .foregroundStyle(.secondary)
-            Text("\(bean.name) (\(bean.roaster))")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.tint)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("ESPRESSO & POUR OVER LOG")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.0)
+                    .foregroundStyle(Palette.inkSecondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(bean.name)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Palette.ink)
+                    if !bean.roaster.isEmpty {
+                        Text("(\(bean.roaster))")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+            }
 
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                 GridRow {
-                    field("R", value: bean.roastDate.formatted(.dateTime.day(.twoDigits).month(.twoDigits)))
+                    field("Roasted", value: bean.roastDate.formatted(.dateTime.day(.twoDigits).month(.twoDigits)))
                     field("Basket", value: equipment?.basket ?? "—")
                 }
                 GridRow {
@@ -132,19 +194,21 @@ struct NotebookHeader: View {
                     }
                 }
             }
-            .font(.subheadline)
-
-            Rectangle()
-                .fill(.primary)
-                .frame(height: 1.5)
+            .font(.footnote)
         }
-        .padding(.vertical, 4)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .paperCard()
     }
 
     private func field(_ label: String, value: String) -> some View {
         HStack(spacing: 4) {
-            Text("\(label):").foregroundStyle(.secondary)
-            Text(value).fontWeight(.medium).lineLimit(1)
+            Text(label).foregroundStyle(Palette.inkSecondary)
+            Text(value)
+                .font(.mono(.footnote))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 }

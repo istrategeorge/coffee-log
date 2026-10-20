@@ -17,9 +17,9 @@ struct NumericKeypad: View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 Text(field.label(for: method).uppercased())
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.8)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.bold))
+                    .tracking(1.0)
+                    .foregroundStyle(Palette.inkSecondary)
                 Spacer()
                 nudgeButton(-1)
                 nudgeButton(1)
@@ -57,7 +57,12 @@ struct NumericKeypad: View {
         .padding(.horizontal)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .background(.bar)
+        .background(Palette.control)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Palette.rule)
+                .frame(height: 1)
+        }
     }
 
     private func key(_ key: KeypadKey) -> some View {
@@ -77,10 +82,12 @@ struct NumericKeypad: View {
         let text = step < 1 ? step.fixed() : step.trimmed
         return Button { onNudge(direction) } label: {
             Text("\(direction < 0 ? "−" : "+")\(text)")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color(.tertiarySystemFill), in: Capsule())
+                .font(.mono(.subheadline, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 36)
+                .background(Palette.card, in: Capsule())
+                .overlay(Capsule().strokeBorder(Palette.rule, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .buttonRepeatBehavior(.enabled)
@@ -100,12 +107,13 @@ struct KeypadButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.title2, design: .rounded, weight: .medium))
+            .font(.mono(.title2, weight: .medium))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .foregroundStyle(prominent ? Palette.onAccent : Palette.ink)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(prominent ? AnyShapeStyle(.tint) : AnyShapeStyle(Color(.secondarySystemGroupedBackground)))
+                    .fill(prominent ? Palette.accent : Palette.card)
+                    .shadow(color: .black.opacity(prominent ? 0 : 0.14), radius: 0, y: 1)
             )
             .opacity(configuration.isPressed ? 0.6 : 1)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)

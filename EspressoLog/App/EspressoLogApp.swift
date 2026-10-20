@@ -17,6 +17,7 @@ struct EspressoLogApp: App {
     var body: some Scene {
         WindowGroup {
             ActiveBeanDashboardView()
+                .tint(Palette.accent)
         }
         .modelContainer(container)
     }
