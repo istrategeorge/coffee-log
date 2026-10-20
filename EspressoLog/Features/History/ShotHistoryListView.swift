@@ -66,6 +66,11 @@ struct ShotHistoryListView: View {
             if let beanFilter, searchText.isEmpty {
                 NotebookHeader(bean: beanFilter, equipment: shots.first?.equipment)
                     .paperRow()
+                let mapMethod = methodFilter ?? dominantMethod(in: shots)
+                if shots.filter({ $0.brewMethod == mapMethod }).count >= 2 {
+                    DialInMapChart(method: mapMethod, shots: shots, numbers: numbers)
+                        .paperRow()
+                }
             }
             ForEach(shots) { shot in
                 ShotRowView(
@@ -134,6 +139,13 @@ struct ShotHistoryListView: View {
         }
         .scrollIndicators(.hidden)
         .sensoryFeedback(.selection, trigger: methodFilter)
+    }
+
+    /// Ratio and time scales differ too much to share one map, so with no method filter
+    /// the map shows whichever method has more pulls.
+    private func dominantMethod(in shots: [ShotLog]) -> BrewMethod {
+        let pourOvers = shots.filter { $0.brewMethod == .pourOver }.count
+        return pourOvers > shots.count - pourOvers ? .pourOver : .espresso
     }
 
     private func delete(_ shot: ShotLog) {
