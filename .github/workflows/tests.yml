@@ -15,8 +15,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16.0
-        run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+      # Uses the runner's default Xcode, which always ships with a matching simulator runtime
+      # (the release build pins an older Xcode whose runtime isn't on every runner image).
+      - name: Show Xcode
+        run: xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -24,10 +26,27 @@ jobs:
       - name: Generate Xcode Project
         run: xcodegen generate
 
+      - name: Pick a simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime in sorted(devices, reverse=True):
+              if "iOS" not in runtime:
+                  continue
+              for device in devices[runtime]:
+                  if device["name"].startswith("iPhone"):
+                      print(device["udid"])
+                      sys.exit(0)
+          sys.exit("No available iPhone simulator")
+          ')
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl list devices available | grep "$UDID"
+
       - name: Test
         run: |
           xcodebuild test \
             -project EspressoLog.xcodeproj \
             -scheme EspressoLog \
-            -destination "platform=iOS Simulator,name=iPhone 16" \
+            -destination "id=$SIMULATOR_UDID" \
             CODE_SIGNING_ALLOWED=NO
