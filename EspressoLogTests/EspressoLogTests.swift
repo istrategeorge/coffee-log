@@ -248,9 +248,9 @@ struct EspressoLogTests {
         vm.tasteBalance = .balancedSweet
         let savedPourOver = try #require(vm.save(in: container.mainContext))
         #expect(savedPourOver.brewMethod == .pourOver)
-        #expect(savedPourOver.notebookLine.contains("V60 01"))
-        #expect(savedPourOver.notebookLine.contains("Blm 45g/45s"))
-        #expect(savedPourOver.notebookLine.contains("3p Swirl"))
+        #expect(savedPourOver.dripper == "Hario V60 01")
+        #expect(savedPourOver.notebookLine.contains("Bloom 45g/45s"))
+        #expect(savedPourOver.notebookLine.contains("3 Pours · Swirl"))
 
         // 60g from 3 espresso shots + 15g from 1 pour over = 75g used, 175g remaining
         #expect(abs(bean.usedGrams - 75.0) < 0.001)
