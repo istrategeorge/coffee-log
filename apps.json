@@ -18,7 +18,7 @@
       "downloadURL": "https://github.com/istrategeorge/coffee-log/releases/latest/download/EspressoLog.ipa",
       "localizedDescription": "Minimalist, fast, tactile espresso and pour over logging app designed specifically for specialty coffee dial-in, flat-burr grinders (e.g., Timemore Sculptor 078s), and dual-boiler/profiling setups (e.g., La Marzocco Linea Micra).\n\nFeatures:\n• Select Espresso or Pour Over per dose (both deduct from your active bag's remaining weight)\n• Dedicated Pour Over tracking: Dripper, Water Weight, Drawdown Time, Bloom Water/Wait, Pour Pulses, Agitation, and Bed Diagnostics\n• Automatic pre-fill of all parameters from previous brew of that method\n• Positive-only grind setting (0.0 to 16.0) with integer 0-point offset field\n• Live rest day calculation (pauses calculation when frozen)\n• Full Flow/Bed Quality × Sensory Balance extraction insights engine",
       "iconURL": "https://raw.githubusercontent.com/istrategeorge/coffee-log/main/icon.png",
-      "tintColor": "10B981",
+      "tintColor": "2443A6",
       "size": 15000000
     }
   ],
