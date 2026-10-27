@@ -14,11 +14,18 @@ struct EspressoLogApp: App {
         ModelContainerFactory.seedDefaultsIfNeeded(in: container.mainContext)
     }
 
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             ActiveBeanDashboardView()
                 .tint(Palette.accent)
         }
         .modelContainer(container)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                AutoBackup.runIfEnabled(context: container.mainContext)
+            }
+        }
     }
 }

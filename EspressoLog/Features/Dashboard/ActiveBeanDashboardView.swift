@@ -21,6 +21,7 @@ struct ActiveBeanDashboardView: View {
         case rebuyBean(CoffeeBean)
         case editBean(CoffeeBean)
         case equipment(EquipmentProfile?)
+        case backup
 
         var id: String {
             switch self {
@@ -30,6 +31,7 @@ struct ActiveBeanDashboardView: View {
             case .rebuyBean: "rebuyBean"
             case .editBean: "editBean"
             case .equipment: "equipment"
+            case .backup: "backup"
             }
         }
     }
@@ -119,6 +121,8 @@ struct ActiveBeanDashboardView: View {
                     BeanEditorSheet(bean: bean)
                 case .equipment(let profile):
                     EquipmentProfileSheet(profile: profile)
+                case .backup:
+                    BackupView()
                 }
             }
         }
@@ -193,6 +197,12 @@ struct ActiveBeanDashboardView: View {
                         activeSheet = .newBean
                     } label: {
                         Label("New Coffee Bean…", systemImage: "plus")
+                    }
+                    Divider()
+                    Button {
+                        activeSheet = .backup
+                    } label: {
+                        Label("Backup & Restore…", systemImage: "externaldrive.badge.icloud")
                     }
                 } label: {
                     Label("Coffees", systemImage: "shippingbox")
@@ -315,16 +325,24 @@ struct ActiveBeanDashboardView: View {
         } description: {
             Text("Add a bag to track rest days, bag weight, and your dial-in pulls.")
         } actions: {
-            HStack(spacing: 12) {
-                Button("Add Bean") {
-                    activeSheet = .newBean
-                }
-                .buttonStyle(.borderedProminent)
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    Button("Add Bean") {
+                        activeSheet = .newBean
+                    }
+                    .buttonStyle(.borderedProminent)
 
-                Button("Load Sample Notebook") {
-                    SampleData.insertNotebookSample(in: context)
+                    Button("Load Sample Notebook") {
+                        SampleData.insertNotebookSample(in: context)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
+
+                Button {
+                    activeSheet = .backup
+                } label: {
+                    Label("Restore from Backup", systemImage: "square.and.arrow.down")
+                }
             }
         }
     }
