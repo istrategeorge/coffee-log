@@ -321,29 +321,7 @@ struct ShotLoggingSheetView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(model.brewMethod == .pourOver ? "Drawdown & Bed" : "Flow")
                 .padding(.horizontal, 4)
-            HStack(spacing: 8) {
-                ForEach(FlowQuality.allCases) { flow in
-                    let isSelected = model.flowQuality == flow
-                    Button {
-                        withAnimation(.snappy) { model.flowQuality = flow }
-                    } label: {
-                        VStack(spacing: 5) {
-                            Image(systemName: flow.symbol(for: model.brewMethod))
-                                .font(.headline)
-                            Text(flow.label(for: model.brewMethod))
-                                .font(.caption.weight(isSelected ? .bold : .semibold))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .padding(.horizontal, 4)
-                        .frame(maxWidth: .infinity, minHeight: 66)
-                        .optionTile(isSelected: isSelected, tint: flow.tint)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                }
-            }
-            .sensoryFeedback(.selection, trigger: model.flowQuality)
+            FlowPicker(method: model.brewMethod, selection: $model.flowQuality)
         }
     }
 
@@ -360,6 +338,10 @@ struct ShotLoggingSheetView: View {
             }
             .padding(.horizontal, 4)
             BalanceSegmentedControl(selection: $model.tasteBalance)
+            Text("Still drinking? Tap the brew in your Notebook later to update flow and balance.")
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.horizontal, 4)
         }
     }
 
