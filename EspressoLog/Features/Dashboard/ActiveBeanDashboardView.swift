@@ -22,6 +22,7 @@ struct ActiveBeanDashboardView: View {
         case editBean(CoffeeBean)
         case equipment(EquipmentProfile?)
         case backup
+        case tasting(ShotLog)
 
         var id: String {
             switch self {
@@ -32,6 +33,7 @@ struct ActiveBeanDashboardView: View {
             case .editBean: "editBean"
             case .equipment: "equipment"
             case .backup: "backup"
+            case .tasting: "tasting"
             }
         }
     }
@@ -123,6 +125,8 @@ struct ActiveBeanDashboardView: View {
                     EquipmentProfileSheet(profile: profile)
                 case .backup:
                     BackupView()
+                case .tasting(let shot):
+                    ShotTastingSheet(shot: shot)
                 }
             }
         }
@@ -251,7 +255,8 @@ struct ActiveBeanDashboardView: View {
                 if let lastShot = beanShots.first ?? preferredTemplateShot(for: bean) {
                     LastRecipeCard(
                         shot: lastShot,
-                        isCarryOver: beanShots.isEmpty
+                        isCarryOver: beanShots.isEmpty,
+                        onTaste: { activeSheet = .tasting(lastShot) }
                     )
                 }
 
@@ -311,7 +316,14 @@ struct ActiveBeanDashboardView: View {
                                 .fill(Palette.track)
                                 .frame(height: 1)
                         }
-                        NotebookPreviewRow(shot: shot, number: shots.count - index)
+                        Button {
+                            activeSheet = .tasting(shot)
+                        } label: {
+                            NotebookPreviewRow(shot: shot, number: shots.count - index)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Update flow, balance and notes")
                     }
                 }
                 .paperCard()
@@ -653,6 +665,7 @@ private struct EquipmentStrip: View {
 private struct LastRecipeCard: View {
     let shot: ShotLog
     var isCarryOver: Bool = false
+    var onTaste: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -690,6 +703,18 @@ private struct LastRecipeCard: View {
                         }
                     }
                     .accessibilityElement(children: .combine)
+                }
+
+                if !isCarryOver {
+                    Button(action: onTaste) {
+                        Label("Finished the cup? Update flow & balance", systemImage: "cup.and.saucer")
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .padding(.horizontal, 12)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(PaperButtonStyle(kind: .inset))
                 }
             }
             .padding(16)

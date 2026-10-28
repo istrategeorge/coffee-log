@@ -465,7 +465,7 @@ final class ShotLoggingViewModel {
         nextTweak = current.isEmpty ? tweak : "\(current) · \(tweak)"
     }
 
-    private static func makeFlavorSuggestions(from history: [ShotLog]) -> [String] {
+    static func makeFlavorSuggestions(from history: [ShotLog]) -> [String] {
         var counts: [String: Int] = [:]
         for shot in history {
             for note in shot.flavorNotes { counts[note, default: 0] += 1 }

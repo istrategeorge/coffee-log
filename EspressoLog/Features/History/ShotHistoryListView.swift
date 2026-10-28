@@ -11,6 +11,7 @@ struct ShotHistoryListView: View {
     @State private var beanFilter: CoffeeBean?
     @State private var methodFilter: BrewMethod?
     @State private var searchText: String = ""
+    @State private var tastingShot: ShotLog?
 
     init(bean: CoffeeBean? = nil) {
         _beanFilter = State(initialValue: bean)
@@ -73,12 +74,24 @@ struct ShotHistoryListView: View {
                 }
             }
             ForEach(shots) { shot in
-                ShotRowView(
-                    shot: shot,
-                    number: numbers[shot.persistentModelID],
-                    showsBeanName: beanFilter == nil || !searchText.isEmpty
-                )
+                Button {
+                    tastingShot = shot
+                } label: {
+                    ShotRowView(
+                        shot: shot,
+                        number: numbers[shot.persistentModelID],
+                        showsBeanName: beanFilter == nil || !searchText.isEmpty
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Update flow, balance and notes")
                 .paperRow()
+                .swipeActions(edge: .leading) {
+                    Button("Taste", systemImage: "cup.and.saucer") {
+                        tastingShot = shot
+                    }
+                    .tint(Palette.accent)
+                }
                 .swipeActions(edge: .trailing) {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         delete(shot)
@@ -90,6 +103,9 @@ struct ShotHistoryListView: View {
         .scrollContentBackground(.hidden)
         .paperBackground()
         .searchable(text: $searchText, prompt: "Search coffee, roaster, method, notes, gear…")
+        .sheet(item: $tastingShot) { shot in
+            ShotTastingSheet(shot: shot)
+        }
         .navigationTitle(beanFilter?.name ?? "All Brews")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Palette.paper, for: .navigationBar)
