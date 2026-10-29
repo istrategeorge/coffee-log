@@ -100,7 +100,9 @@ enum EspressoMigrationPlan: SchemaMigrationPlan {
     static var stages: [MigrationStage] { [v1ToV2] }
 
     /// New attributes are optional or defaulted, so existing bags simply start unrated.
-    static let v1ToV2 = MigrationStage.lightweight(fromVersion: EspressoSchemaV1.self, toVersion: EspressoSchemaV2.self)
+    static var v1ToV2: MigrationStage {
+        .lightweight(fromVersion: EspressoSchemaV1.self, toVersion: EspressoSchemaV2.self)
+    }
 }
 
 enum ModelContainerFactory {
