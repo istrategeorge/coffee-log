@@ -71,7 +71,11 @@ enum BackupService {
                 isActive: bean.isActive,
                 isFinished: bean.isFinished,
                 finishedDate: bean.finishedDate,
-                createdAt: bean.createdAt
+                createdAt: bean.createdAt,
+                rating: bean.rating,
+                ratingNotes: bean.ratingNotes.isEmpty ? nil : bean.ratingNotes,
+                ratedAt: bean.ratedAt,
+                isFavorite: bean.isFavorite
             )
         }
 
@@ -176,6 +180,7 @@ enum BackupService {
         var beanByID: [Int: CoffeeBean] = [:]
         for record in file.beans {
             if let match = existingBeanKeys[Key.bean(record)] {
+                adoptRating(from: record, into: match)
                 beanByID[record.id] = match
                 summary.beansSkipped += 1
                 continue
@@ -195,6 +200,7 @@ enum BackupService {
             )
             bean.frozenDaysBanked = record.frozenDaysBanked
             bean.createdAt = record.createdAt
+            adoptRating(from: record, into: bean)
             context.insert(bean)
             beanByID[record.id] = bean
             existingBeanKeys[Key.bean(record)] = bean
@@ -275,6 +281,19 @@ enum BackupService {
 
     /// Identity used to recognise records already in the store. Dates compare to the whole
     /// second because the backup's ISO 8601 dates drop fractions of a second.
+    /// Fills in the score, notes and favorite from a backup. A bag that already has a rating on this
+    /// device keeps it, so restoring never overwrites newer notes. A favorite is only ever added.
+    private static func adoptRating(from record: BackupFile.BeanRecord, into bean: CoffeeBean) {
+        if bean.rating == nil, bean.ratingNotes.isEmpty {
+            bean.rating = record.rating.map { min(max($0, CoffeeBean.ratingScale.lowerBound), CoffeeBean.ratingScale.upperBound) }
+            bean.ratingNotes = record.ratingNotes ?? ""
+            bean.ratedAt = record.ratedAt
+        }
+        if record.isFavorite == true {
+            bean.isFavorite = true
+        }
+    }
+
     private enum Key {
         struct Bean: Hashable {
             let name: String

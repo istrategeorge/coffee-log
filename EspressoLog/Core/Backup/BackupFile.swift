@@ -44,6 +44,11 @@ struct BackupFile: Codable, Sendable {
         var isFinished: Bool
         var finishedDate: Date?
         var createdAt: Date
+        // Added in v1.7. Optional so backups from earlier versions still decode.
+        var rating: Int?
+        var ratingNotes: String?
+        var ratedAt: Date?
+        var isFavorite: Bool?
     }
 
     struct ShotRecord: Codable, Sendable {
