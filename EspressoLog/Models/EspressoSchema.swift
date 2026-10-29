@@ -1,3 +1,6 @@
+import Foundation
+import SwiftData
+
 /// Version 1 of the persistent schema (v1.0 – v1.6), frozen.
 ///
 /// These copies must keep exactly the stored properties the app shipped with, so SwiftData can
