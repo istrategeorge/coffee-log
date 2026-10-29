@@ -30,6 +30,8 @@ enum Palette {
     static let channel = Color(light: 0xB3261E, dark: 0xF2867D)
     static let frost = Color(light: 0x1F6E86, dark: 0x7FCBE0)
     static let pourOver = Color(light: 0x1F6E6A, dark: 0x7CCFC6)
+    /// "Would buy again" heart.
+    static let favorite = Color(light: 0xB3261E, dark: 0xF2867D)
 }
 
 extension BrewMethod {
@@ -413,6 +415,32 @@ struct TagChip: View {
                 .overlay(Capsule().strokeBorder(isSelected ? tint : Palette.rule, lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Bag score pill, e.g. `8/10`, with an optional favorite heart. Shows nothing when unrated and not a favorite.
+struct RatingBadge: View {
+    let rating: Int?
+    var isFavorite = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if isFavorite {
+                Image(systemName: "heart.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Palette.favorite)
+                    .accessibilityLabel("Favorite")
+            }
+            if let rating {
+                (Text("\(rating)").font(.mono(.footnote, weight: .bold))
+                    + Text("/10").font(.mono(.caption2)).foregroundStyle(Palette.inkSecondary))
+                    .foregroundStyle(Palette.accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Palette.accent.opacity(0.12), in: Capsule())
+                    .accessibilityLabel("Rated \(rating) out of 10")
+            }
+        }
     }
 }
 

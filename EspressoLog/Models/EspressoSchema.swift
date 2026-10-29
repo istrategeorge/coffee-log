@@ -1,12 +1,94 @@
 import Foundation
 import SwiftData
 
-/// Version 1 of the persistent schema.
+/// Version 1 of the persistent schema (v1.0 – v1.6), frozen.
 ///
-/// When the models change, freeze copies of the current models inside this enum,
-/// add `EspressoSchemaV2`, and append a `MigrationStage` to `EspressoMigrationPlan`.
+/// These copies must keep exactly the stored properties the app shipped with, so SwiftData can
+/// recognize existing stores and migrate them. Never edit them; add a new version instead.
 enum EspressoSchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
+
+    static var models: [any PersistentModel.Type] {
+        [CoffeeBean.self, EquipmentProfile.self, ShotLog.self]
+    }
+
+    @Model
+    final class CoffeeBean {
+        var name: String = ""
+        var roaster: String = ""
+        var variety: String = ""
+        var process: String = ""
+        var roastDate: Date = Date.now
+        var isFrozen: Bool = false
+        var freezeDate: Date?
+        var frozenDaysBanked: Int = 0
+        var bagWeightGrams: Double = 250.0
+        var bagNumber: Int = 1
+        var isActive: Bool = false
+        var isFinished: Bool = false
+        var finishedDate: Date?
+        var createdAt: Date = Date.now
+
+        @Relationship(deleteRule: .cascade, inverse: \ShotLog.bean)
+        var shots: [ShotLog] = []
+
+        init() {}
+    }
+
+    @Model
+    final class EquipmentProfile {
+        var machineName: String = ""
+        var grinderName: String = ""
+        var grinderZeroOffset: Int = 0
+        var basket: String = ""
+        var puckScreen: String?
+        var defaultDripper: String = "Hario V60 01"
+        var isActive: Bool = false
+        var createdAt: Date = Date.now
+
+        @Relationship(deleteRule: .nullify, inverse: \ShotLog.equipment)
+        var shots: [ShotLog] = []
+
+        init() {}
+    }
+
+    @Model
+    final class ShotLog {
+        var timestamp: Date = Date.now
+        var brewMethodRaw: String = "espresso"
+        var dose: Double = 18.0
+        var yield: Double = 36.0
+        var totalTime: Double = 28.0
+        var grindSetting: Double = 0.0
+        var grinderZeroOffset: Int = 0
+        var grinderRPM: Int?
+        var feedMethodRaw: String = "slowFeed"
+        var brewTemperature: Double = 93.0
+        var preBrewPulse: Double = 0.0
+        var preBrewPause: Double = 0.0
+        var dripper: String?
+        var bloomWater: Double = 0.0
+        var pourCount: Int = 3
+        var agitationRaw: String = "moderateSwirl"
+        var flowQualityRaw: String = "smoothCone"
+        var tasteBalanceRaw: String = "balancedSweet"
+        var flavorNotes: [String] = []
+        var actionableNextTweak: String?
+        var restDaysAtBrew: Int = 0
+
+        var bean: CoffeeBean?
+        var equipment: EquipmentProfile?
+
+        init() {}
+    }
+}
+
+/// Version 2 (v1.7): bag rating, rating notes and favorite on `CoffeeBean`.
+///
+/// When the models change again, freeze copies of the current models inside this enum (as in V1),
+/// add `EspressoSchemaV3`, and append a `MigrationStage` to `EspressoMigrationPlan`.
+enum EspressoSchemaV2: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
 
     static var models: [any PersistentModel.Type] {
         [CoffeeBean.self, EquipmentProfile.self, ShotLog.self]
@@ -14,14 +96,24 @@ enum EspressoSchemaV1: VersionedSchema {
 }
 
 enum EspressoMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [EspressoSchemaV1.self] }
-    static var stages: [MigrationStage] { [] }
+    static var schemas: [any VersionedSchema.Type] { [EspressoSchemaV1.self, EspressoSchemaV2.self] }
+    static var stages: [MigrationStage] { [v1ToV2] }
+
+    /// New attributes are optional or defaulted, so existing bags simply start unrated.
+    static var v1ToV2: MigrationStage {
+        .lightweight(fromVersion: EspressoSchemaV1.self, toVersion: EspressoSchemaV2.self)
+    }
 }
 
 enum ModelContainerFactory {
-    static func make(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: EspressoSchemaV1.self)
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+    /// - Parameter url: Store location; `nil` uses the default store. Tests pass a temporary file.
+    static func make(inMemory: Bool = false, url: URL? = nil) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: EspressoSchemaV2.self)
+        let configuration = if let url {
+            ModelConfiguration(schema: schema, url: url)
+        } else {
+            ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+        }
         return try ModelContainer(
             for: schema,
             migrationPlan: EspressoMigrationPlan.self,

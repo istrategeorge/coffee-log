@@ -341,6 +341,9 @@ struct BeanEditorSheet: View {
                 freezeDate: isFrozen ? freezeDate : nil,
                 isActive: true
             )
+            // A new bag of a coffee you'd buy again stays a favorite.
+            let allBags = (try? context.fetch(FetchDescriptor<CoffeeBean>())) ?? []
+            bean.isFavorite = allBags.contains { $0.isFavorite && $0.isSameCoffee(as: bean) }
             context.insert(bean)
             context.activate(bean)
         }

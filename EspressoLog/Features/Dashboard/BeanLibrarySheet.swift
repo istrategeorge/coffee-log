@@ -2,18 +2,37 @@ import SwiftUI
 import SwiftData
 
 /// Searchable library of all coffee bags (active & past), allowing the user to search by
-/// name, roaster, variety, or process, switch the active bag, or start a new bag of a past coffee.
+/// name, roaster, variety, process or rating notes, switch the active bag, start a new bag of a past coffee,
+/// and rate bags or mark the ones you'd buy again.
 struct BeanLibrarySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \CoffeeBean.createdAt, order: .reverse) private var beans: [CoffeeBean]
 
     @State private var searchText = ""
+    @State private var scope: Scope = .all
+    @State private var ratingBean: CoffeeBean?
+
+    private enum Scope: String, CaseIterable, Identifiable {
+        case all = "All"
+        case favorites = "Favorites"
+        case topRated = "Top Rated"
+
+        var id: String { rawValue }
+    }
 
     var onSelectNewBag: (CoffeeBean?) -> Void
 
     private var filteredBeans: [CoffeeBean] {
-        beans.filter { $0.matchesSearch(searchText) }
+        let matches = beans.filter { $0.matchesSearch(searchText) }
+        return switch scope {
+        case .all: matches
+        case .favorites: matches.filter(\.isFavorite)
+        case .topRated:
+            matches
+                .filter { $0.rating != nil }
+                .sorted { ($0.rating ?? 0, $0.createdAt) > ($1.rating ?? 0, $1.createdAt) }
+        }
     }
 
     private var openBeans: [CoffeeBean] {
@@ -27,22 +46,42 @@ struct BeanLibrarySheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if !openBeans.isEmpty {
-                    Section("Open Bags") {
-                        ForEach(openBeans) { bean in
-                            beanRow(for: bean)
+                Picker("Show", selection: $scope) {
+                    ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
+                if scope == .topRated {
+                    if !filteredBeans.isEmpty {
+                        Section("By Score") {
+                            ForEach(filteredBeans) { bean in
+                                beanRow(for: bean)
+                            }
                         }
                     }
-                }
-                if !finishedBeans.isEmpty {
-                    Section("Finished Bags") {
-                        ForEach(finishedBeans) { bean in
-                            beanRow(for: bean)
+                } else {
+                    if !openBeans.isEmpty {
+                        Section("Open Bags") {
+                            ForEach(openBeans) { bean in
+                                beanRow(for: bean)
+                            }
+                        }
+                    }
+                    if !finishedBeans.isEmpty {
+                        Section("Finished Bags") {
+                            ForEach(finishedBeans) { bean in
+                                beanRow(for: bean)
+                            }
                         }
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: "Search coffee, roaster, variety, process…")
+            .sheet(item: $ratingBean) { bean in
+                BeanRatingSheet(bean: bean)
+            }
+            .searchable(text: $searchText, prompt: "Search coffee, roaster, process, notes…")
             .navigationTitle("Coffee Bags")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -60,7 +99,21 @@ struct BeanLibrarySheet: View {
             }
             .overlay {
                 if filteredBeans.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
+                    if !searchText.isEmpty {
+                        ContentUnavailableView.search(text: searchText)
+                    } else if scope == .favorites {
+                        ContentUnavailableView(
+                            "No Favorites Yet",
+                            systemImage: "heart",
+                            description: Text("Tap the heart on a bag you'd buy again.")
+                        )
+                    } else if scope == .topRated {
+                        ContentUnavailableView(
+                            "No Rated Bags",
+                            systemImage: "star",
+                            description: Text("Swipe right on a bag and tap Rate to score it 1 – 10.")
+                        )
+                    }
                 }
             }
         }
@@ -96,6 +149,7 @@ struct BeanLibrarySheet: View {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.tint)
                         }
+                        RatingBadge(rating: bean.rating, isFavorite: bean.isFavorite)
                     }
 
                     Text("\(bean.roaster) · \(bean.variety) · \(bean.process)")
@@ -114,6 +168,14 @@ struct BeanLibrarySheet: View {
                                 .font(.caption2.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
+                    }
+
+                    if !bean.ratingNotes.isEmpty {
+                        Text(bean.ratingNotes)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(3)
+                            .padding(.top, 2)
                     }
                 }
             }
@@ -153,6 +215,32 @@ struct BeanLibrarySheet: View {
             .accessibilityLabel("Start a new bag of \(bean.name)")
         }
         .padding(.vertical, 4)
+        .swipeActions(edge: .leading) {
+            Button {
+                ratingBean = bean
+            } label: {
+                Label("Rate", systemImage: "star")
+            }
+            .tint(Palette.accent)
+            Button {
+                toggleFavorite(bean)
+            } label: {
+                Label(bean.isFavorite ? "Unfavorite" : "Favorite", systemImage: bean.isFavorite ? "heart.slash" : "heart")
+            }
+            .tint(Palette.favorite)
+        }
+        .contextMenu {
+            Button {
+                ratingBean = bean
+            } label: {
+                Label(bean.rating == nil ? "Rate Bag…" : "Edit Rating…", systemImage: "star")
+            }
+            Button {
+                toggleFavorite(bean)
+            } label: {
+                Label(bean.isFavorite ? "Remove from Favorites" : "Would Buy Again", systemImage: bean.isFavorite ? "heart.slash" : "heart")
+            }
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
                 withAnimation(.snappy) {
@@ -170,6 +258,13 @@ struct BeanLibrarySheet: View {
                 )
             }
             .tint(bean.isFinished ? .orange : .green)
+        }
+    }
+
+    private func toggleFavorite(_ bean: CoffeeBean) {
+        withAnimation(.snappy) {
+            bean.setFavorite(!bean.isFavorite, across: beans)
+            try? context.save()
         }
     }
 }

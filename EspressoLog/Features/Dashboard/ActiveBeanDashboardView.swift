@@ -23,6 +23,7 @@ struct ActiveBeanDashboardView: View {
         case equipment(EquipmentProfile?)
         case backup
         case tasting(ShotLog)
+        case rateBean(CoffeeBean)
 
         var id: String {
             switch self {
@@ -34,6 +35,7 @@ struct ActiveBeanDashboardView: View {
             case .equipment: "equipment"
             case .backup: "backup"
             case .tasting: "tasting"
+            case .rateBean: "rateBean"
             }
         }
     }
@@ -127,6 +129,8 @@ struct ActiveBeanDashboardView: View {
                     BackupView()
                 case .tasting(let shot):
                     ShotTastingSheet(shot: shot)
+                case .rateBean(let bean):
+                    BeanRatingSheet(bean: bean)
                 }
             }
         }
@@ -192,6 +196,11 @@ struct ActiveBeanDashboardView: View {
                             )
                         }
                         Button {
+                            activeSheet = .rateBean(activeBean)
+                        } label: {
+                            Label("Rate \(activeBean.name)…", systemImage: "star")
+                        }
+                        Button {
                             activeSheet = .rebuyBean(activeBean)
                         } label: {
                             Label("New Bag of \(activeBean.name)…", systemImage: "shippingbox.and.arrow.backward")
@@ -249,7 +258,9 @@ struct ActiveBeanDashboardView: View {
                     onToggleFinished: { toggleFinished(for: bean) },
                     onRebuy: { activeSheet = .rebuyBean(bean) },
                     onNewBean: { activeSheet = .newBean },
-                    onEdit: { activeSheet = .editBean(bean) }
+                    onEdit: { activeSheet = .editBean(bean) },
+                    onRate: { activeSheet = .rateBean(bean) },
+                    onToggleFavorite: { toggleFavorite(for: bean) }
                 )
 
                 if let lastShot = beanShots.first ?? preferredTemplateShot(for: bean) {
@@ -443,6 +454,17 @@ struct ActiveBeanDashboardView: View {
             }
             try? context.save()
         }
+        // Finishing a bag is the natural moment to score it.
+        if bean.isFinished, bean.rating == nil {
+            activeSheet = .rateBean(bean)
+        }
+    }
+
+    private func toggleFavorite(for bean: CoffeeBean) {
+        withAnimation(.snappy) {
+            bean.setFavorite(!bean.isFavorite, across: beans)
+            try? context.save()
+        }
     }
 }
 
@@ -457,6 +479,8 @@ private struct ActiveBeanCard: View {
     var onRebuy: () -> Void
     var onNewBean: () -> Void
     var onEdit: () -> Void
+    var onRate: () -> Void
+    var onToggleFavorite: () -> Void
 
     var body: some View {
         TimelineView(.everyMinute) { timeline in
@@ -478,6 +502,8 @@ private struct ActiveBeanCard: View {
                     Spacer(minLength: 0)
                 }
 
+                ratingRow
+
                 if bean.isFinished {
                     Text("\(bean.usedGrams.fixed(0))g logged of \(bean.bagWeightGrams.fixed(0))g\(bean.untrackedGrams > 0 ? " · \(bean.untrackedGrams.fixed(0))g untracked" : "")")
                         .font(.mono(.footnote))
@@ -494,7 +520,38 @@ private struct ActiveBeanCard: View {
             .paperCard(cornerRadius: 24)
             .sensoryFeedback(.selection, trigger: bean.isFrozen)
             .sensoryFeedback(.success, trigger: bean.isFinished)
+            .sensoryFeedback(.selection, trigger: bean.isFavorite)
         }
+    }
+
+    /// Score and the start of the notes; tap to rate or edit.
+    private var ratingRow: some View {
+        Button(action: onRate) {
+            HStack(spacing: 10) {
+                if let rating = bean.rating {
+                    RatingBadge(rating: rating)
+                    Text(bean.ratingNotes.isEmpty ? BeanRatingSheet.verdict(for: rating) : bean.ratingNotes)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                } else {
+                    Image(systemName: "star")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tint)
+                    Text("Rate this bag")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tint)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 40)
+        }
+        .buttonStyle(PaperButtonStyle(kind: .inset))
+        .accessibilityLabel(bean.rating.map { "Rated \($0) out of 10. Edit rating" } ?? "Rate this bag")
     }
 
     private var overline: String {
@@ -527,6 +584,15 @@ private struct ActiveBeanCard: View {
                 }
             }
             Spacer(minLength: 0)
+            Button(action: onToggleFavorite) {
+                Image(systemName: bean.isFavorite ? "heart.fill" : "heart")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.favorite)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(PaperButtonStyle(kind: .inset, cornerRadius: 22))
+            .accessibilityLabel(bean.isFavorite ? "Remove from favorites" : "Add to favorites")
             Button(action: onEdit) {
                 Image(systemName: "pencil")
                     .font(.subheadline.weight(.semibold))

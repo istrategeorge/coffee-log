@@ -24,6 +24,13 @@ final class CoffeeBean {
     var isFinished: Bool = false
     var finishedDate: Date?
     var createdAt: Date = Date.now
+    /// The user's score for this bag, 1 – 10. `nil` until rated.
+    var rating: Int?
+    /// Free-form tasting notes written with the rating.
+    var ratingNotes: String = ""
+    var ratedAt: Date?
+    /// "Would buy again". Shared by every bag of the same coffee.
+    var isFavorite: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \ShotLog.bean)
     var shots: [ShotLog] = []
@@ -143,6 +150,33 @@ extension CoffeeBean {
     }
 }
 
+// MARK: - Rating & favorite
+
+extension CoffeeBean {
+    static let ratingScale: ClosedRange<Int> = 1...10
+
+    /// Stores a 1 – 10 score (clamped) with notes; `nil` clears the rating.
+    func rate(_ score: Int?, notes: String, on date: Date = .now) {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let score {
+            rating = min(max(score, Self.ratingScale.lowerBound), Self.ratingScale.upperBound)
+            ratedAt = date
+        } else {
+            rating = nil
+            ratedAt = nil
+        }
+        ratingNotes = trimmed
+    }
+
+    /// Sets "would buy again" on this bag and every other bag of the same coffee in `bags`.
+    func setFavorite(_ isFavorite: Bool, across bags: [CoffeeBean]) {
+        self.isFavorite = isFavorite
+        for bag in bags where bag.isSameCoffee(as: self) {
+            bag.isFavorite = isFavorite
+        }
+    }
+}
+
 // MARK: - Bag Inventory & Search
 
 extension CoffeeBean {
@@ -212,7 +246,7 @@ extension CoffeeBean {
                 .caseInsensitiveCompare(other.roaster.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
     }
 
-    /// Case-insensitive search across name, roaster, variety, and process.
+    /// Case-insensitive search across name, roaster, variety, process, and rating notes.
     func matchesSearch(_ query: String) -> Bool {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return true }
@@ -220,5 +254,6 @@ extension CoffeeBean {
             || roaster.localizedStandardContains(trimmed)
             || variety.localizedStandardContains(trimmed)
             || process.localizedStandardContains(trimmed)
+            || ratingNotes.localizedStandardContains(trimmed)
     }
 }
